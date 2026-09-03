@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gcs-bg text-gcs-text font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .gold-gradient {
+    background: linear-gradient(135deg, #D4A72C 0%, #B88918 100%);
+  }
+  .charcoal-gradient {
+    background: linear-gradient(135deg, #222326 0%, #17181A 100%);
+  }
+  .gold-glow {
+    box-shadow: 0 10px 30px -10px rgba(212, 167, 44, 0.4);
+  }
+}
