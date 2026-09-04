@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gcs-bg text-gcs-text font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .gold-gradient {
+    background: linear-gradient(135deg, #D4A72C 0%, #B88918 100%);
+  }
+  .charcoal-gradient {
+    background: linear-gradient(135deg, #222326 0%, #17181A 100%);
+  }
+  .navy-gradient {
+    background: linear-gradient(90deg, #01083f 0%, #021055 50%, #0f766e 100%);
+  }
+  .gold-glow {
+    box-shadow: 0 10px 30px -10px rgba(212, 167, 44, 0.4);
+  }
+}
+
+@keyframes scrollTrack {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes scrollText {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-scroll-track {
+  display: flex;
+  width: max-content;
+  animation: scrollTrack 30s linear infinite;
+}
+
+.animate-scroll-track:hover {
+  animation-play-state: paused;
+}
+
+.site-scroll-text {
+  display: inline-block;
+  padding-left: 100%;
+  animation: scrollText 22s linear infinite;
+}
+

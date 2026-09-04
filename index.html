@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gnana Computech Solutions Private Limited | Tech Training, Projects & Software Solutions</title>
+    <meta name="description" content="Gnana Computech Solutions Private Limited - Leading software development, BCA & MCA academic projects, degree student internships, IT training and placement support in Sunkadakatte, Bangalore." />
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind Play CDN for fallback & immediate preview execution -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              gcs: {
+                gold: '#D4A72C',
+                'gold-dark': '#B88918',
+                'gold-light': '#F5E6B8',
+                charcoal: '#222326',
+                'charcoal-dark': '#17181A',
+                'charcoal-light': '#32343A',
+                bg: '#FAFAF7',
+                border: '#E8E1D2',
+                text: '#252525',
+                muted: '#6B6B6B',
+              }
+            },
+            fontFamily: {
+              sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    
+    <style>
+      body {
+        background-color: #FAFAF7;
+        color: #252525;
+        font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+        overflow-x: hidden;
+      }
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #17181A;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #D4A72C;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #B88918;
+      }
+    </style>
+  </head>
+  <body class="bg-[#FAFAF7] text-[#252525] antialiased selection:bg-[#D4A72C] selection:text-white min-h-screen flex flex-col">
+    <div id="root"></div>
+
+    <!-- Main Vite Script Entry -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
