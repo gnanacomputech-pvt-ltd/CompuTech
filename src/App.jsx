@@ -88,6 +88,7 @@ export const App = () => {
           {/* Institution Portal UI */}
           <Route path="/institution" element={<InstitutionDashboard />} />
           <Route path="/institution/dashboard" element={<InstitutionDashboard />} />
+          <Route path="/institution/*" element={<InstitutionDashboard />} />
 
           {/* Fallback route */}
           <Route path="*" element={<Home />} />
