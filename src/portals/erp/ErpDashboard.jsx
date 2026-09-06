@@ -1,23 +1,94 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Building2, UserCheck, BookOpen, Layers, UserPlus, 
   CheckSquare, FileSpreadsheet, FolderGit2, GraduationCap, DollarSign, Award, 
   Settings, LogOut, Bell, Search, TrendingUp, Calendar, AlertCircle, ChevronRight,
   Plus, Trash2, Edit, Check, X, Download, Filter, Eye, Phone, Mail, MapPin, 
-  Sparkles, Printer, FileText, CheckCircle2, Clock, ShieldCheck, RefreshCw
+  Sparkles, Printer, FileText, CheckCircle2, Clock, ShieldCheck, RefreshCw,
+  Image, Upload
 } from 'lucide-react';
 import { Logo } from '../../components/Logo';
+import { galleryData } from '../../data/galleryData';
 
 export const ErpDashboard = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('Dashboard');
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  // ----------------------------------------------------
+  // GALLERY STATE WITH LOCALSTORAGE PERSISTENCE
+  // ----------------------------------------------------
+  const [galleryPhotos, setGalleryPhotos] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gcs_erp_gallery_photos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to parse saved gallery photos:', e);
+    }
+    return galleryData;
+  });
+
+  const saveGalleryPhotos = (photos) => {
+    setGalleryPhotos(photos);
+    try {
+      localStorage.setItem('gcs_erp_gallery_photos', JSON.stringify(photos));
+    } catch (e) {
+      console.error('Failed to save gallery photos:', e);
+    }
+  };
+
+  const handleFileUpload = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files || files.length === 0) return;
+
+    let loadedCount = 0;
+    const newEntries = [];
+
+    files.forEach(file => {
+      if (!file.type.startsWith('image/')) {
+        showToast(`File "${file.name}" is not a valid image format`, 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Data = event.target.result;
+        newEntries.push({
+          id: `g-upload-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          category: 'Uploaded Media',
+          title: file.name.replace(/\.[^/.]+$/, ''),
+          date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          image: base64Data,
+          description: `Uploaded on ${new Date().toLocaleDateString()}`
+        });
+
+        loadedCount++;
+        if (loadedCount === files.length) {
+          const updated = [...newEntries, ...galleryPhotos];
+          saveGalleryPhotos(updated);
+          showToast(`${newEntries.length} photo(s) uploaded successfully & saved to ERP!`);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleDeletePhoto = (photoId) => {
+    if (window.confirm('Are you sure you want to delete this photo from the ERP Gallery?')) {
+      const updated = galleryPhotos.filter(p => p.id !== photoId);
+      saveGalleryPhotos(updated);
+      showToast('Photo removed from Gallery');
+    }
   };
 
   // ----------------------------------------------------
@@ -164,6 +235,74 @@ export const ErpDashboard = () => {
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [viewCertificateModal, setViewCertificateModal] = useState(null);
 
+  // Add Photo Modal States
+  const [isAddPhotoModalOpen, setIsAddPhotoModalOpen] = useState(false);
+  const [newPhotoForm, setNewPhotoForm] = useState({
+    image: '',
+    fileName: '',
+    category: 'Workshops',
+    title: '',
+    description: ''
+  });
+  const [photoFormError, setPhotoFormError] = useState('');
+
+  const handlePhotoSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setPhotoFormError('Invalid file type. Please select a JPG, JPEG, PNG, or WEBP image.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setNewPhotoForm(prev => ({
+        ...prev,
+        image: event.target.result,
+        fileName: file.name,
+        title: prev.title || file.name.replace(/\.[^/.]+$/, '')
+      }));
+      setPhotoFormError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePhotoSubmit = (e) => {
+    e.preventDefault();
+
+    if (!newPhotoForm.image) {
+      setPhotoFormError('Please browse and select an image file from your device.');
+      return;
+    }
+
+    if (!newPhotoForm.category) {
+      setPhotoFormError('Please select an Event / Category.');
+      return;
+    }
+
+    if (!newPhotoForm.description || !newPhotoForm.description.trim()) {
+      setPhotoFormError('Please enter an Event Description.');
+      return;
+    }
+
+    const newPhoto = {
+      id: `g-upload-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      category: newPhotoForm.category,
+      title: newPhotoForm.title.trim() || 'Campus Event Photo',
+      date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      image: newPhotoForm.image,
+      description: newPhotoForm.description.trim()
+    };
+
+    const updated = [newPhoto, ...galleryPhotos];
+    saveGalleryPhotos(updated);
+    setIsAddPhotoModalOpen(false);
+    setNewPhotoForm({ image: '', fileName: '', category: 'Workshops', title: '', description: '' });
+    setPhotoFormError('');
+    showToast('New gallery photo uploaded & saved successfully!');
+  };
+
   // Form states
   const [newStudent, setNewStudent] = useState({ name: '', college: '', course: 'BCA Final Year Project', batch: 'BCA-2026-B1', phone: '', email: '', fee: 'Paid' });
   const [newFee, setNewFee] = useState({ student: 'Prajwal Gowda', program: 'BCA Final Year Project', amount: '6500', mode: 'UPI' });
@@ -308,8 +447,24 @@ export const ErpDashboard = () => {
     { name: 'Projects', icon: FolderGit2, count: projects.length },
     { name: 'Fees', icon: DollarSign, count: transactions.length },
     { name: 'Certificates', icon: Award, count: certificates.length },
+    { name: 'Gallery', icon: Image, count: galleryPhotos.length },
     { name: 'Settings', icon: Settings },
   ];
+
+  // Derive active tab from current URL path
+  const getTabFromPath = () => {
+    const path = location.pathname.replace('/erp', '').replace('/', '').toLowerCase();
+    const matched = sidebarItems.find(item => item.name.toLowerCase() === path);
+    return matched ? matched.name : 'Dashboard';
+  };
+
+  const activeTab = getTabFromPath();
+
+  const handleTabClick = (itemName) => {
+    const path = itemName === 'Dashboard' ? '/erp/dashboard' : `/erp/${itemName.toLowerCase()}`;
+    navigate(path);
+    setSearchTerm('');
+  };
 
   // Search filter helper
   const filteredStudents = useMemo(() => {
@@ -325,7 +480,7 @@ export const ErpDashboard = () => {
   }, [students, searchTerm]);
 
   return (
-    <div className="min-h-screen bg-[#17181A] text-white flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-[#17181A] text-white flex flex-col lg:flex-row max-w-full overflow-x-hidden">
       
       {/* Toast Notification */}
       {toast && (
@@ -338,33 +493,29 @@ export const ErpDashboard = () => {
       )}
 
       {/* Sidebar Navigation */}
-      <aside className="w-full lg:w-64 bg-[#222326] border-b lg:border-b-0 lg:border-r border-gray-800 flex-shrink-0 flex flex-col justify-between p-4">
+      <aside className="w-full lg:w-64 bg-[#222326] border-b lg:border-b-0 lg:border-r border-gray-800 flex-shrink-0 flex flex-col justify-between p-4 lg:fixed lg:top-0 lg:bottom-0 lg:left-0 lg:z-30 lg:overflow-y-auto">
         <div>
-          <div className="pb-6 pt-2 px-2 border-b border-gray-800 flex items-center justify-between">
-            <Logo variant="dark" size="normal" />
-            <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-[#D4A72C] text-[#17181A]">ERP v2.4</span>
+          <div className="pb-6 pt-2 px-2 border-b border-gray-800 flex items-center">
+            <Logo variant="dark" size="normal" stacked={true} />
           </div>
 
-          <nav className="mt-4 space-y-1 max-h-[62vh] overflow-y-auto pr-1">
+          <nav className="mt-4 space-y-1 max-h-[55vh] lg:max-h-[60vh] overflow-y-auto pr-1">
             {sidebarItems.map((item) => (
               <button
                 key={item.name}
-                onClick={() => {
-                  setActiveTab(item.name);
-                  setSearchTerm('');
-                }}
+                onClick={() => handleTabClick(item.name)}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   activeTab === item.name
                     ? 'bg-[#D4A72C] text-[#17181A] shadow-md font-bold'
                     : 'text-gray-300 hover:bg-gray-800 hover:text-[#D4A72C]'
                 }`}
               >
-                <div className="flex items-center space-x-2.5">
-                  <item.icon className="w-4 h-4" />
-                  <span>{item.name}</span>
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <item.icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">{item.name}</span>
                 </div>
                 {item.count !== undefined && item.count > 0 && (
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold flex-shrink-0 ${
                     activeTab === item.name ? 'bg-[#17181A] text-[#D4A72C]' : 'bg-gray-800 text-gray-400'
                   }`}>
                     {item.count}
@@ -376,26 +527,26 @@ export const ErpDashboard = () => {
         </div>
 
         {/* User Info & Logout */}
-        <div className="pt-4 border-t border-gray-800 space-y-2">
+        <div className="pt-4 border-t border-gray-800 space-y-2 mt-4 lg:mt-0">
           <div className="px-3 py-2 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-between">
-            <div className="text-xs">
-              <p className="font-bold text-white">GCS Admin Office</p>
-              <p className="text-[10px] text-[#D4A72C]">Sunkadakatte HQ (Active)</p>
+            <div className="text-xs min-w-0">
+              <p className="font-bold text-white truncate">GCS Admin Office</p>
+              <p className="text-[10px] text-[#D4A72C] truncate">Sunkadakatte HQ (Active)</p>
             </div>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
           </div>
           <button
             onClick={() => navigate('/login')}
             className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-red-950/60 border border-red-800 text-red-300 hover:bg-red-900 text-xs font-bold transition-colors cursor-pointer"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-4 h-4 flex-shrink-0" />
             <span>Logout ERP</span>
           </button>
         </div>
       </aside>
 
       {/* Main ERP Area */}
-      <main className="flex-1 bg-[#17181A] p-4 sm:p-8 overflow-y-auto">
+      <main className="flex-1 min-w-0 bg-[#17181A] p-4 sm:p-6 lg:p-8 lg:ml-64 overflow-y-auto">
         
         {/* Top Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-8 border-b border-gray-800">
@@ -1411,6 +1562,72 @@ export const ErpDashboard = () => {
           </div>
         )}
 
+        {/* ---------------------------------------------------- */}
+        {/* TAB 14: GALLERY MANAGEMENT */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'Gallery' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#222326] p-4 rounded-2xl border border-gray-800">
+              <div>
+                <h3 className="font-bold text-white text-sm">GCS Institutional Photo Gallery</h3>
+                <p className="text-xs text-gray-400">Campus events, project expos, workshops & student activity archives</p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewPhotoForm({ image: '', fileName: '', category: 'Workshops', title: '', description: '' });
+                    setPhotoFormError('');
+                    setIsAddPhotoModalOpen(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer transition-colors shadow-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Add Photos</span>
+                </button>
+              </div>
+            </div>
+
+            {galleryPhotos.length === 0 ? (
+              <div className="bg-[#222326] rounded-2xl border border-gray-800 p-12 text-center space-y-3">
+                <Image className="w-12 h-12 text-gray-600 mx-auto" />
+                <h4 className="text-base font-bold text-white">No Photos Available</h4>
+                <p className="text-xs text-gray-400">Upload campus photos using the "+ Add Photos" button above.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {galleryPhotos.map((photo) => (
+                  <div key={photo.id} className="bg-[#222326] rounded-2xl border border-gray-800 overflow-hidden group hover:border-[#D4A72C]/40 transition-all flex flex-col justify-between shadow-sm">
+                    <div className="relative overflow-hidden aspect-video bg-gray-900">
+                      <img
+                        src={photo.image}
+                        alt={photo.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold bg-[#17181A]/80 text-[#D4A72C] border border-[#D4A72C]/30 backdrop-blur-sm">
+                        {photo.category || 'Gallery'}
+                      </span>
+                      <button
+                        onClick={() => handleDeletePhoto(photo.id)}
+                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-red-950/80 text-red-400 hover:bg-red-900 hover:text-white transition-colors cursor-pointer"
+                        title="Delete Photo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="p-4 space-y-1">
+                      <h4 className="font-bold text-white text-xs line-clamp-1">{photo.title}</h4>
+                      <p className="text-[11px] text-gray-400 line-clamp-2">{photo.description}</p>
+                      <span className="text-[10px] text-gray-500 font-mono block pt-1">{photo.date}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
 
       {/* ---------------------------------------------------- */}
@@ -1940,7 +2157,150 @@ export const ErpDashboard = () => {
         </div>
       )}
 
+      {/* ---------------------------------------------------- */}
+      {/* MODAL: ADD GALLERY PHOTO */}
+      {/* ---------------------------------------------------- */}
+      {isAddPhotoModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Image className="w-5 h-5 text-[#D4A72C]" /> Add Gallery Photo
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddPhotoModalOpen(false)}
+                className="text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePhotoSubmit} className="space-y-4 text-xs">
+              
+              {photoFormError && (
+                <div className="p-3 rounded-xl bg-red-950/80 border border-red-800 text-red-300 font-bold">
+                  {photoFormError}
+                </div>
+              )}
+
+              {/* 1. Select Photo & Browse File */}
+              <div className="space-y-2">
+                <label className="block text-gray-400 font-bold uppercase tracking-wider">
+                  Select Photo *
+                </label>
+
+                {newPhotoForm.image ? (
+                  <div className="space-y-2">
+                    <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-gray-900 border border-gray-700">
+                      <img
+                        src={newPhotoForm.image}
+                        alt="Selected Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-[10px] bg-black/70 text-gray-300 font-mono truncate max-w-[80%]">
+                        {newPhotoForm.fileName}
+                      </span>
+                    </div>
+                    <label
+                      htmlFor="photo-modal-file-input"
+                      className="inline-block px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold cursor-pointer text-[11px] transition-colors"
+                    >
+                      Change Photo
+                    </label>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="photo-modal-file-input"
+                    className="flex flex-col items-center justify-center p-6 rounded-xl border-2 border-dashed border-gray-700 hover:border-[#D4A72C] bg-gray-900/60 cursor-pointer transition-colors text-center space-y-2"
+                  >
+                    <Upload className="w-8 h-8 text-[#D4A72C]" />
+                    <div>
+                      <p className="font-bold text-white">Browse / Choose File</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Supports JPG, JPEG, PNG, WEBP</p>
+                    </div>
+                  </label>
+                )}
+
+                <input
+                  id="photo-modal-file-input"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/jpg"
+                  onChange={handlePhotoSelect}
+                  className="hidden"
+                />
+              </div>
+
+              {/* 2. Event / Photo Title */}
+              <div className="space-y-1">
+                <label className="block text-gray-400 font-bold uppercase tracking-wider">
+                  Event / Photo Title
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Hands-on Full Stack Development Bootcamp"
+                  value={newPhotoForm.title}
+                  onChange={(e) => setNewPhotoForm({ ...newPhotoForm, title: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#D4A72C]"
+                />
+              </div>
+
+              {/* 3. Event / Category Select Dropdown */}
+              <div className="space-y-1">
+                <label className="block text-gray-400 font-bold uppercase tracking-wider">
+                  Event / Category *
+                </label>
+                <select
+                  value={newPhotoForm.category}
+                  onChange={(e) => setNewPhotoForm({ ...newPhotoForm, category: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#D4A72C]"
+                >
+                  <option value="Workshops">Workshops</option>
+                  <option value="Training">Training</option>
+                  <option value="Events">Events</option>
+                  <option value="Internships">Internships</option>
+                  <option value="Student Activities">Student Activities</option>
+                  <option value="Seminars">Seminars</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {/* 4. Event Description Textarea */}
+              <div className="space-y-1">
+                <label className="block text-gray-400 font-bold uppercase tracking-wider">
+                  Event Description *
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Enter a short description of the event..."
+                  value={newPhotoForm.description}
+                  onChange={(e) => setNewPhotoForm({ ...newPhotoForm, description: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-[#D4A72C] resize-none"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddPhotoModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer transition-colors"
+                >
+                  Submit
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
-

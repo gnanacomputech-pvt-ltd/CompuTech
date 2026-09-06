@@ -79,6 +79,7 @@ export const App = () => {
           {/* ERP Portal UI */}
           <Route path="/erp" element={<ErpDashboard />} />
           <Route path="/erp/dashboard" element={<ErpDashboard />} />
+          <Route path="/erp/*" element={<ErpDashboard />} />
 
           {/* Student Portal UI */}
           <Route path="/student" element={<StudentDashboard />} />

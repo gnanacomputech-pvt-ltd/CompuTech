@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { 
-  Menu, X, ChevronRight, ShieldCheck, GraduationCap, Building2,
+  Menu, X, ChevronDown, ShieldCheck, GraduationCap, Building2,
   Home as HomeIcon, Info, Briefcase, BookOpen, Award, Calendar, 
   FileText, Image as ImageIcon, PhoneCall
 } from 'lucide-react';
@@ -10,8 +10,10 @@ import { Button } from './Button';
 
 export const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isPortalsOpen, setIsPortalsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -21,9 +23,25 @@ export const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close mobile drawer on route change
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsPortalsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
+
+  // Close mobile drawer and dropdown on route change
   useEffect(() => {
     setIsOpen(false);
+    setIsPortalsOpen(false);
   }, [location]);
 
   const navLinks = [
@@ -84,24 +102,38 @@ export const Navbar = () => {
 
           {/* Desktop Right CTA: Portals & Enquire Button */}
           <div className="hidden lg:flex items-center gap-2.5 xl:gap-3.5 flex-shrink-0">
-            <div className="relative group">
-              <button className="text-xs xl:text-sm font-semibold px-3 py-1.5 xl:px-3.5 xl:py-2 rounded-lg border border-white/20 text-gray-100 hover:text-[#ffcc00] hover:border-[#ffcc00] transition-all flex items-center gap-1.5 bg-[#01083f]/60 shadow-sm cursor-pointer">
+            <div className="relative flex-shrink-0" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsPortalsOpen(!isPortalsOpen)}
+                className={`text-xs xl:text-sm font-semibold px-3 py-1.5 xl:px-3.5 xl:py-2 rounded-lg border transition-all flex items-center gap-1.5 bg-[#01083f]/60 shadow-sm cursor-pointer select-none ${
+                  isPortalsOpen
+                    ? 'text-[#ffcc00] border-[#ffcc00] bg-white/10'
+                    : 'text-gray-100 border-white/20 hover:text-[#ffcc00] hover:border-[#ffcc00]'
+                }`}
+                aria-expanded={isPortalsOpen}
+              >
                 <span>Portals</span>
-                <ChevronRight className="w-3.5 h-3.5 group-hover:rotate-90 transition-transform duration-200" />
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0 ${
+                  isPortalsOpen ? 'rotate-180 text-[#ffcc00]' : 'text-gray-300'
+                }`} />
               </button>
 
-              <div className="absolute right-0 mt-2 w-52 bg-[#01083f] border border-[#ffcc00]/30 rounded-xl shadow-2xl p-2 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                {portalLinks.map((portal) => (
-                  <Link
-                    key={portal.path}
-                    to={portal.path}
-                    className="flex items-center gap-2.5 px-3 py-2.5 text-xs xl:text-sm font-medium text-gray-200 hover:text-[#ffcc00] hover:bg-white/10 rounded-lg transition-colors"
-                  >
-                    <portal.icon className="w-4 h-4 text-[#ffcc00]" />
-                    <span>{portal.name}</span>
-                  </Link>
-                ))}
-              </div>
+              {isPortalsOpen && (
+                <div className="absolute right-0 top-full mt-2 w-52 bg-[#01083f] border border-[#ffcc00]/30 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  {portalLinks.map((portal) => (
+                    <Link
+                      key={portal.path}
+                      to={portal.path}
+                      onClick={() => setIsPortalsOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2.5 text-xs xl:text-sm font-medium text-gray-200 hover:text-[#ffcc00] hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <portal.icon className="w-4 h-4 text-[#ffcc00] flex-shrink-0" />
+                      <span>{portal.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
 
             <Link
