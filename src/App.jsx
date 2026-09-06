@@ -83,6 +83,7 @@ export const App = () => {
           {/* Student Portal UI */}
           <Route path="/student" element={<StudentDashboard />} />
           <Route path="/student/dashboard" element={<StudentDashboard />} />
+          <Route path="/student/*" element={<StudentDashboard />} />
 
           {/* Institution Portal UI */}
           <Route path="/institution" element={<InstitutionDashboard />} />
