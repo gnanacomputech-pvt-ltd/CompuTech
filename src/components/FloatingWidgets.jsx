@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, MessageCircle, X, Sparkles, Calendar, BookOpen, GraduationCap, PhoneCall, Megaphone } from 'lucide-react';
+import { Bot, MessageCircle, X, Sparkles, Calendar, BookOpen, GraduationCap, PhoneCall, Megaphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const FloatingWidgets = () => {
@@ -93,7 +93,7 @@ export const FloatingWidgets = () => {
           className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-[#4338ca] to-[#0f766e] text-white flex items-center justify-center text-2xl shadow-2xl hover:scale-105 transition-all duration-200 cursor-pointer"
           aria-label="Open GCS Assistant"
         >
-          {isChatOpen ? <X className="w-6 h-6" /> : <MessageSquare className="w-6 h-6" />}
+          {isChatOpen ? <X className="w-6 h-6" /> : <Bot className="w-6 h-6" />}
         </button>
         <span className="hidden group-hover:block absolute right-16 top-3 bg-gray-900 text-white text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap shadow-lg">
           Ask GCS Assistant
