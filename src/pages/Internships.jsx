@@ -46,7 +46,7 @@ export const Internships = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="p-5 rounded-xl bg-[#FAFAF7] border border-[#E8E1D2] text-center">
               <Award className="w-8 h-8 text-[#D4A72C] mx-auto mb-2" />
-              <h4 className="font-bold text-[#222326] text-sm mb-1">ISO Verifiable Certificate</h4>
+              <h4 className="font-bold text-[#222326] text-sm mb-1">Verifiable Certificate</h4>
               <p className="text-xs text-[#6B6B6B]">Internship certificate with unique verification URL/code for your resume.</p>
             </div>
 

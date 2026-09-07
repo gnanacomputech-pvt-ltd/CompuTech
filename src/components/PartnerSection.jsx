@@ -1,8 +1,71 @@
-import React from 'react';
-import { ShieldCheck, Building2, MapPin, Users, GraduationCap, Award, CheckCircle2, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { ShieldCheck, Building2, MapPin, Users, GraduationCap, Award, CheckCircle2, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { partnersData, recognitionsData } from '../data/partnersData';
 
 export const PartnerSection = () => {
+  // Recognitions Carousel Slider State
+  const [recIndex, setRecIndex] = useState(0);
+  const [isRecPaused, setIsRecPaused] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(4);
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
+
+  // Dynamic responsive cards per slide
+  useEffect(() => {
+    const handleResize = () => {
+      let count = 4;
+      if (window.innerWidth < 640) {
+        count = 1;
+      } else if (window.innerWidth < 1024) {
+        count = 2;
+      } else if (window.innerWidth < 1280) {
+        count = 3;
+      } else {
+        count = 4;
+      }
+      setVisibleCount(count);
+      setRecIndex((prev) => Math.min(prev, Math.max(0, recognitionsData.length - count)));
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const totalCards = recognitionsData.length;
+  const maxIndex = Math.max(0, totalCards - visibleCount);
+
+  // Slide navigation - smooth right-to-left advance
+  const nextRec = useCallback(() => {
+    setRecIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
+  }, [maxIndex]);
+
+  const prevRec = useCallback(() => {
+    setRecIndex((prev) => (prev <= 0 ? maxIndex : prev - 1));
+  }, [maxIndex]);
+
+  // Auto-play timer (slides right-to-left every 3.5 seconds)
+  useEffect(() => {
+    if (isRecPaused || maxIndex === 0) return;
+    const interval = setInterval(() => {
+      nextRec();
+    }, 3500);
+    return () => clearInterval(interval);
+  }, [isRecPaused, maxIndex, nextRec]);
+
+  // Touch swipe support for mobile
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchMove = (e) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = () => {
+    if (touchStartX.current - touchEndX.current > 50) {
+      nextRec();
+    } else if (touchStartX.current - touchEndX.current < -50) {
+      prevRec();
+    }
+  };
   const marqueeColleges = [
     {
       name: 'Sunkadakatte First Grade Degree College',
@@ -291,36 +354,138 @@ export const PartnerSection = () => {
           </div>
         </div>
 
-        {/* 4. OFFICIAL RECOGNITIONS & CERTIFICATIONS (4-Card Row) */}
-        <div className="pt-8 border-t border-gray-100">
-          <div className="text-center mb-8">
-            <h3 className="text-xl sm:text-2xl font-extrabold text-[#01083f]">
+        {/* 4. OFFICIAL RECOGNITIONS & CERTIFICATIONS (Carousel Slider) */}
+        <div className="pt-10 border-t border-gray-100">
+          <div className="text-center max-w-3xl mx-auto mb-10">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider bg-[#0f766e]/10 text-[#0f766e] mb-2.5">
+              <Award className="w-3.5 h-3.5" />
+              <span>Accreditations & Compliance</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#01083f]">
               Official Recognitions & Certifications
             </h3>
-            <p className="text-xs sm:text-sm text-gray-500 mt-1">
-              Gnana Computech Solutions operates under registered corporate and international quality standards
+            <p className="text-xs sm:text-sm text-gray-500 mt-2">
+              Gnana Computech Solutions operates under registered corporate, government, and industry quality standards
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {recognitionsData.map((cert, index) => (
+          {/* Carousel Slider with Navigation Controls */}
+          <div className="relative">
+            {/* Prev Arrow */}
+            <button
+              onClick={prevRec}
+              className="absolute -left-2 sm:-left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white border border-gray-200 hover:border-[#0f766e] hover:bg-[#0f766e] text-[#01083f] hover:text-white flex items-center justify-center transition-all duration-200 shadow-md z-20 focus:outline-none cursor-pointer"
+              aria-label="Previous recognitions slide"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            {/* Next Arrow */}
+            <button
+              onClick={nextRec}
+              className="absolute -right-2 sm:-right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white border border-gray-200 hover:border-[#0f766e] hover:bg-[#0f766e] text-[#01083f] hover:text-white flex items-center justify-center transition-all duration-200 shadow-md z-20 focus:outline-none cursor-pointer"
+              aria-label="Next recognitions slide"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+
+            {/* Carousel Slider Window */}
+            <div
+              className="overflow-hidden py-2 px-1"
+              onMouseEnter={() => setIsRecPaused(true)}
+              onMouseLeave={() => setIsRecPaused(false)}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {/* Sliding Track - moves left by (recIndex * (100 / visibleCount))% */}
               <div
-                key={index}
-                className="p-6 rounded-2xl bg-white border border-gray-200/90 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-center flex flex-col items-center justify-center group"
+                className="flex transition-transform duration-500 ease-out"
+                style={{
+                  transform: `translateX(-${recIndex * (100 / visibleCount)}%)`
+                }}
               >
-                <span className="text-3xl sm:text-4xl mb-3 group-hover:scale-110 transition-transform duration-300">
-                  {cert.icon}
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#0f766e]/10 text-[#0f766e] mb-2">
-                  {cert.badge}
-                </span>
-                <h4 className="text-base font-extrabold text-[#01083f]">{cert.title}</h4>
-                <p className="text-xs font-semibold text-[#0f766e] mt-1">{cert.subtitle}</p>
-                <p className="text-xs text-gray-500 mt-2 leading-relaxed">
-                  {cert.description}
-                </p>
+                {recognitionsData.map((cert, index) => (
+                  <div
+                    key={index}
+                    className="w-full sm:w-1/2 lg:w-1/3 xl:w-1/4 flex-shrink-0 px-2.5"
+                  >
+                    <div className="h-full p-6 rounded-2xl bg-white border border-gray-200/90 shadow-sm hover:border-gray-300 hover:shadow-md transition-all duration-300 text-center flex flex-col items-center justify-between">
+                      <div className="flex flex-col items-center w-full">
+                        {cert.image ? (
+                          <div className="h-14 w-full flex items-center justify-center mb-3.5 p-1.5 rounded-xl bg-gray-50 border border-gray-100">
+                            <img
+                              src={cert.image}
+                              alt={cert.title}
+                              className="max-h-12 w-auto object-contain rounded"
+                            />
+                          </div>
+                        ) : (
+                          <div className="h-14 w-full flex items-center justify-center mb-3.5">
+                            <span className="text-3xl sm:text-4xl">
+                              {cert.icon}
+                            </span>
+                          </div>
+                        )}
+
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#0f766e]/10 text-[#0f766e] border border-[#0f766e]/20 mb-2">
+                          {cert.badge}
+                        </span>
+
+                        <h4 className="text-base font-extrabold text-[#01083f] leading-snug">
+                          {cert.title}
+                        </h4>
+
+                        <p className="text-xs font-semibold text-[#0f766e] mt-1">
+                          {cert.subtitle}
+                        </p>
+
+                        <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                          {cert.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-gray-100 w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#0f766e]">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Verified Statutory Record</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          </div>
+
+          {/* Carousel Pagination Dots & Center Controls */}
+          <div className="flex justify-center items-center space-x-3 mt-6">
+            <button
+              onClick={prevRec}
+              className="w-8 h-8 rounded-full bg-white border border-gray-200 hover:border-[#0f766e] hover:bg-[#0f766e] text-[#01083f] hover:text-white flex items-center justify-center transition-all duration-200 shadow-xs focus:outline-none cursor-pointer"
+              aria-label="Previous slide"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center space-x-2">
+              {Array.from({ length: maxIndex + 1 }).map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setRecIndex(idx)}
+                  className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                    recIndex === idx ? 'bg-[#0f766e] w-7' : 'bg-gray-200 hover:bg-gray-300 w-2'
+                  }`}
+                  aria-label={`Go to slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={nextRec}
+              className="w-8 h-8 rounded-full bg-white border border-gray-200 hover:border-[#0f766e] hover:bg-[#0f766e] text-[#01083f] hover:text-white flex items-center justify-center transition-all duration-200 shadow-xs focus:outline-none cursor-pointer"
+              aria-label="Next slide"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
 

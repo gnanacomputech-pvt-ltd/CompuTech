@@ -21,8 +21,8 @@ export const Logo = ({ variant = 'default', size = 'normal', stacked = false }) 
             <span className={`font-extrabold tracking-tight ${size === 'large' ? 'text-xl' : 'text-sm'} text-[#D4A72C]`}>
               COMPUTECH
             </span>
-            <span className={`text-[9px] uppercase font-bold tracking-wider mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              SOLUTIONS PVT. LTD.
+            <span className={`text-[8px] sm:text-[9px] uppercase font-bold tracking-wider mt-0.5 whitespace-nowrap ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              SOLUTIONS PRIVATE LIMITED
             </span>
           </>
         ) : (
@@ -35,8 +35,8 @@ export const Logo = ({ variant = 'default', size = 'normal', stacked = false }) 
                 COMPUTECH
               </span>
             </div>
-            <span className={`text-[10px] uppercase font-bold tracking-widest ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              SOLUTIONS PVT. LTD.
+            <span className={`text-[8.5px] sm:text-[9.5px] uppercase font-bold tracking-wider whitespace-nowrap ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              SOLUTIONS PRIVATE LIMITED
             </span>
           </>
         )}

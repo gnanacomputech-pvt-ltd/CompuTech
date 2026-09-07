@@ -16,7 +16,7 @@ export const coursesData = [
       'Git, GitHub Collaboration & Netlify/Vercel Deployment',
       'Final Industry Capstone Project'
     ],
-    highlights: ['4 Live Projects', 'Placement Support', 'ISO Certification', 'Mock Interviews']
+    highlights: ['4 Live Projects', 'Placement Support', 'Course Certification', 'Mock Interviews']
   },
   {
     id: 'python-data-science',

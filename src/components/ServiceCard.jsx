@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GraduationCap, Code, Briefcase, Laptop, UserCheck, Users, ArrowRight } from 'lucide-react';
+import { GraduationCap, Code, Briefcase, Laptop, UserCheck, Users, ArrowRight, BookCheck } from 'lucide-react';
 
 const iconMap = {
   GraduationCap,
@@ -8,7 +8,8 @@ const iconMap = {
   Briefcase,
   Laptop,
   UserCheck,
-  Users
+  Users,
+  BookCheck
 };
 
 export const ServiceCard = ({ service }) => {

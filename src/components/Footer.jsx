@@ -19,7 +19,7 @@ export const Footer = () => {
             </p>
             <div className="flex items-center space-x-3 pt-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ffcc00]/10 border border-[#ffcc00]/30 text-xs font-bold text-[#ffcc00]">
-                <Award className="w-3.5 h-3.5" /> ISO 9001:2015
+                <Award className="w-3.5 h-3.5" /> DPIIT Recognized
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-xs font-semibold text-white">
                 <Shield className="w-3.5 h-3.5 text-[#ffcc00]" /> MSME Unit

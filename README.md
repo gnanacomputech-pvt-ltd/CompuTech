@@ -36,7 +36,7 @@ Extracted from the official GCS logo & corporate identity:
 
 ### Public Website
 - `/` - Home Page (Hero, Trust/Partners, Services preview, Courses, Testimonials carousel, Events, Quick Pillars)
-- `/about` - About GCS (Company overview, ISO certification, CIN, Sunkadakatte Head Office address, Mission, Vision, Training philosophy)
+- `/about` - About GCS (Company overview, Corporate quality standards, CIN, Sunkadakatte Head Office address, Mission, Vision, Training philosophy)
 - `/services` - Services Listing (BCA/MCA Academic Projects, Industry Training, Software Internships, Custom Software, Placement Support, Seminars)
 - `/services/:id` - Detailed Service Pages
 - `/courses` - Courses & Programs Listing with category filters
@@ -65,7 +65,7 @@ Extracted from the official GCS logo & corporate identity:
 - **Company Name:** Gnana Computech Solutions Private Limited
 - **CIN:** U85500KA2025PTC205651
 - **Registered Address:** 2nd Floor, No. 126, 9th A Cross, 3rd Main, Vigneswara Nagar, Sunkadakatte, Viswaneedam Post, Bangalore North, Karnataka, India - 560091
-- **Accreditation:** ISO 9001:2015 Certified Quality Management System | MSME Registered Unit
+- **Accreditation:** MSME Registered Unit | Registered Private Limited Company
 - **Phone:** +91 98765 43210 / +91 80 2345 6789
 - **Email:** info@gnanacomputech.com
 

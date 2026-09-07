@@ -340,7 +340,7 @@ export const InstitutionDashboard = () => {
               </div>
 
               <div className="bg-white p-6 rounded-2xl border border-[#E8E1D2] shadow-sm">
-                <span className="text-xs text-gray-500 uppercase font-bold">ISO Compliance</span>
+                <span className="text-xs text-gray-500 uppercase font-bold">Academic Compliance</span>
                 <h3 className="text-3xl font-extrabold text-emerald-600 mt-1">100%</h3>
                 <p className="text-xs text-gray-500 mt-1">Biometric & Register Verified</p>
               </div>

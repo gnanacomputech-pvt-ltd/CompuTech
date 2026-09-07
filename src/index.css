@@ -3,8 +3,13 @@
 @tailwind utilities;
 
 @layer base {
-  body {
+  html, body {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
     @apply bg-gcs-bg text-gcs-text font-sans antialiased;
+  }
+
+  *, *::before, *::after {
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
   }
 }
 

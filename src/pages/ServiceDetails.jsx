@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
-import { CheckCircle2, ArrowLeft, GraduationCap, Code, Briefcase, Laptop, UserCheck, Users, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, ArrowLeft, GraduationCap, Code, Briefcase, Laptop, UserCheck, Users, ShieldCheck, BookCheck } from 'lucide-react';
 import { servicesData } from '../data/servicesData';
 import { Button } from '../components/Button';
 
@@ -10,7 +10,8 @@ const iconMap = {
   Briefcase,
   Laptop,
   UserCheck,
-  Users
+  Users,
+  BookCheck
 };
 
 export const ServiceDetails = () => {

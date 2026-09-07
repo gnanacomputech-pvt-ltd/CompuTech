@@ -173,9 +173,9 @@ export const ErpDashboard = () => {
   // 8. STATE: CERTIFICATES
   // ----------------------------------------------------
   const [certificates, setCertificates] = useState([
-    { certId: 'GCS-2026-CERT-081', studentName: 'Sharath Kumar', program: 'Python & AI Machine Learning Track', date: '2026-02-25', grade: 'Grade A+ (Distinction)', verification: 'ISO 9001:2015 QR Verified' },
-    { certId: 'GCS-2026-CERT-082', studentName: 'Deepa Narayan', program: 'Full Stack Web Dev (MERN)', date: '2026-02-18', grade: 'Grade A', verification: 'ISO 9001:2015 QR Verified' },
-    { certId: 'GCS-2026-CERT-083', studentName: 'Anil Kumar S.', program: 'BCA Final Year Degree Project Defense', date: '2026-01-30', grade: 'Grade A+', verification: 'ISO 9001:2015 QR Verified' }
+    { certId: 'GCS-2026-CERT-081', studentName: 'Sharath Kumar', program: 'Python & AI Machine Learning Track', date: '2026-02-25', grade: 'Grade A+ (Distinction)', verification: 'QR Code Verified' },
+    { certId: 'GCS-2026-CERT-082', studentName: 'Deepa Narayan', program: 'Full Stack Web Dev (MERN)', date: '2026-02-18', grade: 'Grade A', verification: 'QR Code Verified' },
+    { certId: 'GCS-2026-CERT-083', studentName: 'Anil Kumar S.', program: 'BCA Final Year Degree Project Defense', date: '2026-01-30', grade: 'Grade A+', verification: 'QR Code Verified' }
   ]);
 
   // ----------------------------------------------------
@@ -222,7 +222,7 @@ export const ErpDashboard = () => {
     academicYear: '2025 - 2026',
     emailAlerts: true,
     autoBackup: true,
-    isoStandard: 'ISO 9001:2015 Standard Compliant'
+    qualityStandard: 'Corporate Standards Compliant'
   });
 
   // ----------------------------------------------------
@@ -375,7 +375,7 @@ export const ErpDashboard = () => {
       program: newCert.program,
       date: new Date().toISOString().split('T')[0],
       grade: newCert.grade,
-      verification: 'ISO 9001:2015 QR Verified'
+      verification: 'QR Code Verified'
     };
     setCertificates([cert, ...certificates]);
     setIsCertModalOpen(false);
@@ -619,7 +619,7 @@ export const ErpDashboard = () => {
                   <Award className="w-4 h-4 text-[#D4A72C]" />
                 </div>
                 <h3 className="text-2xl font-extrabold text-white">{certificates.length} Issued</h3>
-                <p className="text-[11px] text-emerald-400 mt-1">ISO 9001:2015 Verifiable</p>
+                <p className="text-[11px] text-emerald-400 mt-1">QR Code Verifiable</p>
               </div>
             </div>
 
@@ -653,7 +653,7 @@ export const ErpDashboard = () => {
                 >
                   <Award className="w-5 h-5 text-blue-400 mb-1 group-hover:scale-110 transition-transform" />
                   <p className="text-xs font-bold text-white">Issue Certificate</p>
-                  <p className="text-[10px] text-gray-400">ISO QR Verification</p>
+                  <p className="text-[10px] text-gray-400">QR Code Verification</p>
                 </button>
 
                 <button
@@ -1442,7 +1442,7 @@ export const ErpDashboard = () => {
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-[#222326] p-4 rounded-2xl border border-gray-800">
               <div>
-                <h3 className="font-bold text-white text-sm">Issued Certificates & ISO 9001:2015 Verification</h3>
+                <h3 className="font-bold text-white text-sm">Issued Certificates & QR Verification</h3>
                 <p className="text-xs text-gray-400">Verifiable credentials issued under Gnana Computech Solutions Pvt Ltd</p>
               </div>
               <button
@@ -1471,7 +1471,7 @@ export const ErpDashboard = () => {
 
                   <div className="pt-3 border-t border-gray-800 flex justify-between items-center">
                     <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
-                      <ShieldCheck className="w-3.5 h-3.5" /> ISO Verifiable
+                      <ShieldCheck className="w-3.5 h-3.5" /> QR Verifiable
                     </span>
                     <button
                       onClick={() => setViewCertificateModal(cert)}
@@ -1543,8 +1543,8 @@ export const ErpDashboard = () => {
                   <label className="block text-gray-400 mb-1">Quality Standard Certification</label>
                   <input
                     type="text"
-                    value={settings.isoStandard}
-                    onChange={(e) => setSettings({ ...settings, isoStandard: e.target.value })}
+                    value={settings.qualityStandard}
+                    onChange={(e) => setSettings({ ...settings, qualityStandard: e.target.value })}
                     className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
                   />
                 </div>
@@ -1827,7 +1827,7 @@ export const ErpDashboard = () => {
           <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl">
             <div className="flex justify-between items-center border-b border-gray-800 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Award className="w-5 h-5 text-[#D4A72C]" /> Issue ISO 9001:2015 Certificate
+                <Award className="w-5 h-5 text-[#D4A72C]" /> Issue Verifiable Certificate
               </h3>
               <button onClick={() => setIsCertModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
@@ -1877,7 +1877,7 @@ export const ErpDashboard = () => {
 
               <div className="p-3 rounded-xl bg-gray-900 border border-gray-800 text-[11px] text-gray-400 space-y-1">
                 <p className="text-emerald-400 font-bold flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" /> ISO 9001:2015 QR Code Verification
+                  <ShieldCheck className="w-3.5 h-3.5" /> Official QR Code Verification
                 </p>
                 <p>Certificate will be stamped with CIN: U85500KA2025PTC205651</p>
               </div>
@@ -2133,7 +2133,7 @@ export const ErpDashboard = () => {
                 <div>
                   <p className="font-mono text-[10px] text-gray-500">Certificate ID: <strong>{viewCertificateModal.certId}</strong></p>
                   <p className="font-mono text-[10px] text-gray-500">Issued On: {viewCertificateModal.date}</p>
-                  <p className="text-[10px] text-emerald-700 font-bold mt-1">✓ ISO 9001:2015 Standard Verified</p>
+                  <p className="text-[10px] text-emerald-700 font-bold mt-1">✓ Corporate Standard Verified</p>
                 </div>
                 <div className="text-center">
                   <div className="w-28 border-b border-gray-800 pb-1 mb-1 font-serif italic text-xs">Naveen Kumar</div>

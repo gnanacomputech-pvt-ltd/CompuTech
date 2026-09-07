@@ -371,7 +371,7 @@ export const StudentDashboard = () => {
               <div className="p-4 rounded-xl bg-gray-900 text-white text-xs space-y-2">
                 <div className="flex items-center space-x-2 text-[#D4A72C]">
                   <ShieldCheck className="w-4 h-4" />
-                  <span className="font-bold">ISO 9001:2015 Registered Academic Program</span>
+                  <span className="font-bold">Registered Academic Program</span>
                 </div>
                 <p className="text-gray-300">Enrolled under Gnana Computech Solutions Academic Project & Technical Skill Division. Authorized for university viva voce submission.</p>
               </div>
@@ -606,7 +606,7 @@ export const StudentDashboard = () => {
               <div className="space-y-4 text-xs">
                 <div className="p-5 rounded-xl bg-[#FAFAF7] border border-[#E8E1D2] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div className="space-y-1">
-                    <span className="px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase">ISO 9001:2015 QR Verified</span>
+                    <span className="px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase">QR Verified Certificate</span>
                     <h4 className="font-bold text-[#222326] text-base">IEEE Project Completion Certificate</h4>
                     <p className="text-gray-500">Certified for BCA Final Year Academic Project Defense at Sunkadakatte Center.</p>
                     <p className="text-[#B88918] font-mono text-[11px]">Cert ID: GCS-2026-CERT-BCA04</p>

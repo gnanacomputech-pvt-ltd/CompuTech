@@ -1,3 +1,6 @@
+import dpiitLogo from '../../resources/logo/dpiit-recognition.jpg';
+import mcaLogo from '../../resources/logo/mca-logo.webp';
+
 export const partnersData = [
   {
     id: 1,
@@ -102,11 +105,12 @@ export const partnersData = [
 
 export const recognitionsData = [
   {
-    title: 'ISO 9001:2015 Certified',
-    subtitle: 'Quality Management System',
-    description: 'Certified for international standards in IT training, academic software guidance, and software development quality.',
-    badge: 'ISO Certified',
-    icon: '🛡️'
+    title: 'DPIIT Recognized',
+    subtitle: 'Ministry of Commerce & Industry',
+    description: 'Officially recognized by the Department for Promotion of Industry and Internal Trade (DPIIT), operating under the Ministry of Commerce and Industry in the Government of India.',
+    badge: 'Govt. of India Recognized',
+    icon: '🇮🇳',
+    image: dpiitLogo
   },
   {
     title: 'MSME Registered Unit',
@@ -116,11 +120,12 @@ export const recognitionsData = [
     icon: '🏢'
   },
   {
-    title: 'Registered Private Limited',
+    title: 'Ministry of Corporate Affairs (MCA)',
     subtitle: 'CIN: U85500KA2025PTC205651',
-    description: 'Incorporated under the Companies Act as a premier technology and educational solutions company in Bangalore, Karnataka.',
-    badge: 'Corporate Registered',
-    icon: '📜'
+    description: 'Incorporated under the Ministry of Corporate Affairs, an Indian government ministry responsible for the regulation of corporate enterprises and administration of laws like the Companies Act.',
+    badge: 'MCA Incorporated',
+    icon: '🏛️',
+    image: mcaLogo
   },
   {
     title: 'University Network Alignment',
@@ -128,5 +133,19 @@ export const recognitionsData = [
     description: 'Aligned with BCA, MCA, and VTU/Autonomous engineering curricula to ensure 100% academic project compliance.',
     badge: 'University Aligned',
     icon: '🎓'
+  },
+  {
+    title: 'Startup India Registered',
+    subtitle: 'National Innovation Ecosystem',
+    description: 'Empowered under the Government of India Startup India initiative, promoting technological innovation, software research, and engineering skill development.',
+    badge: 'National Initiative',
+    icon: '🇮🇳'
+  },
+  {
+    title: 'IEEE Project Standards',
+    subtitle: 'University Academic Compliance',
+    description: 'Academic projects adhere to IEEE standard architecture models, SRS documentation, and rigorous software development lifecycle practices.',
+    badge: 'IEEE Standard',
+    icon: '📜'
   }
 ];

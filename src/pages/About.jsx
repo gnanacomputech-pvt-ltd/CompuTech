@@ -44,16 +44,16 @@ export const About = () => {
               <div className="p-4 rounded-xl bg-white border border-[#E8E1D2] flex items-start space-x-3">
                 <ShieldCheck className="w-6 h-6 text-[#D4A72C] flex-shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-sm font-bold text-[#222326]">ISO 9001:2015 Certified</h4>
-                  <p className="text-xs text-[#6B6B6B]">Internationally certified for IT training quality and academic project guidance standards.</p>
+                  <h4 className="text-sm font-bold text-[#222326]">DPIIT Recognized</h4>
+                  <p className="text-xs text-[#6B6B6B]">Recognized by the Department for Promotion of Industry and Internal Trade (DPIIT), Ministry of Commerce & Industry, Govt. of India.</p>
                 </div>
               </div>
 
               <div className="p-4 rounded-xl bg-white border border-[#E8E1D2] flex items-start space-x-3">
                 <Building2 className="w-6 h-6 text-[#D4A72C] flex-shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-sm font-bold text-[#222326]">MSME & Govt. Registered</h4>
-                  <p className="text-xs text-[#6B6B6B]">Official corporate entity operating under Indian Companies Act standards.</p>
+                  <h4 className="text-sm font-bold text-[#222326]">Ministry of Corporate Affairs (MCA)</h4>
+                  <p className="text-xs text-[#6B6B6B]">CIN: U85500KA2025PTC205651. Incorporated under the Indian Companies Act, Ministry of Corporate Affairs, Govt. of India.</p>
                 </div>
               </div>
             </div>

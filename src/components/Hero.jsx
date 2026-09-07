@@ -57,7 +57,7 @@ export const Hero = () => {
               {/* Top Accreditation Pill */}
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#01083f]/5 border border-[#01083f]/15 text-xs font-extrabold text-[#01083f] mb-5">
                 <ShieldCheck className="w-4 h-4 text-[#0f766e]" />
-                <span>ISO 9001:2015 Certified Software & Skill Institute</span>
+                <span>MSME Registered Software & Skill Institute</span>
               </div>
 
               {/* Main Headline */}

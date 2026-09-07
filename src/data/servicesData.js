@@ -16,6 +16,22 @@ export const servicesData = [
     technologies: ['React', 'Node.js', 'Python', 'Java', 'Flutter', 'MySQL', 'MongoDB', 'AWS']
   },
   {
+    id: 'value-added-courses',
+    title: 'Value Added Courses (VAC)',
+    shortDesc: 'Certified, curriculum-enriching skill programs designed for colleges & universities to boost student technical competencies and NEP credit alignment.',
+    fullDesc: 'Gnana Computech Solutions partners with degree colleges and universities to deliver structured, industry-aligned Value Added Courses (VAC). Tailored for BCA, B.Sc, B.Com, MCA, and Engineering students, our courses integrate hands-on labs, mini-projects, real-world case studies, and official verifiable certifications that fulfill NEP credit benchmarks and dramatically improve campus placement readiness.',
+    iconName: 'BookCheck',
+    features: [
+      'NEP & University Curriculum Compliant Syllabus',
+      'Hands-On Lab Practical Sessions & Mini-Projects',
+      'Official Verifiable Course Completion Certificate',
+      'Flexible Delivery (On-Campus Labs / Hybrid Mode)',
+      'Expert Corporate Trainers & Dedicated Mentors',
+      'Attendance Tracking, Assessments & College Reports'
+    ],
+    technologies: ['Full Stack MERN', 'Python & Data Analytics', 'AI & Machine Learning', 'Cloud Computing', 'Cyber Security', 'Java Full Stack']
+  },
+  {
     id: 'industry-training',
     title: 'Industry-Focused Training',
     shortDesc: 'Hands-on tech training modules designed to bridge the gap between college curriculum and software industry standards.',

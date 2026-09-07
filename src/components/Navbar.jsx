@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { 
-  Menu, X, ChevronDown, ShieldCheck, GraduationCap, Building2,
-  Home as HomeIcon, Info, Briefcase, BookOpen, Award, Calendar, 
-  FileText, Image as ImageIcon, PhoneCall
+  Menu, X, ChevronDown, ShieldCheck, GraduationCap, Building2
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { Button } from './Button';
@@ -45,15 +43,15 @@ export const Navbar = () => {
   }, [location]);
 
   const navLinks = [
-    { name: 'Home', path: '/', icon: HomeIcon },
-    { name: 'About', path: '/about', icon: Info },
-    { name: 'Services', path: '/services', icon: Briefcase },
-    { name: 'Courses', path: '/courses', icon: BookOpen },
-    { name: 'Internships', path: '/internships', icon: Award },
-    { name: 'Events', path: '/events', icon: Calendar },
-    { name: 'Blogs', path: '/blogs', icon: FileText },
-    { name: 'Gallery', path: '/gallery', icon: ImageIcon },
-    { name: 'Contact', path: '/contact', icon: PhoneCall },
+    { name: 'Home', path: '/' },
+    { name: 'About', path: '/about' },
+    { name: 'Services', path: '/services' },
+    { name: 'Courses', path: '/courses' },
+    { name: 'Internships', path: '/internships' },
+    { name: 'Events', path: '/events' },
+    { name: 'Blogs', path: '/blogs' },
+    { name: 'Gallery', path: '/gallery' },
+    { name: 'Contact', path: '/contact' },
   ];
 
   const portalLinks = [
@@ -65,8 +63,8 @@ export const Navbar = () => {
   return (
     <header className={`sticky top-0 z-50 transition-all duration-300 shadow-xl ${
       scrolled 
-        ? 'bg-gradient-to-r from-[#01083f]/95 via-[#021055]/95 to-[#0f766e]/95 backdrop-blur-md border-b border-[#ffcc00]/30 py-2.5' 
-        : 'bg-gradient-to-r from-[#01083f] via-[#021055] to-[#0f766e] border-b border-white/10 py-3.5'
+        ? 'bg-[#17181A]/95 backdrop-blur-md border-b border-[#D4A72C]/30 py-2.5 shadow-2xl' 
+        : 'bg-[#17181A] border-b border-[#222326] py-3.5 shadow-lg'
     }`}>
       <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
         <div className="flex items-center justify-between gap-4 lg:gap-6 xl:gap-8">
@@ -78,26 +76,22 @@ export const Navbar = () => {
 
           {/* Desktop Navigation Center */}
           <nav className="hidden lg:flex items-center justify-center gap-1 xl:gap-2 flex-1">
-            {navLinks.map((link) => {
-              const IconComp = link.icon;
-              return (
-                <NavLink
-                  key={link.path}
-                  to={link.path}
-                  className={({ isActive }) =>
-                    `px-2.5 py-1.5 xl:px-3 xl:py-2 text-[13px] xl:text-[14px] font-semibold rounded-lg transition-all duration-200 whitespace-nowrap flex items-center gap-1.5 ${
-                      isActive
-                        ? 'text-[#ffcc00] bg-white/10 font-bold shadow-xs'
-                        : 'text-gray-200 hover:text-[#ffcc00] hover:bg-white/5'
-                    }`
-                  }
-                  end={link.path === '/'}
-                >
-                  <IconComp className="w-3.5 h-3.5 opacity-80" />
-                  <span>{link.name}</span>
-                </NavLink>
-              );
-            })}
+            {navLinks.map((link) => (
+              <NavLink
+                key={link.path}
+                to={link.path}
+                className={({ isActive }) =>
+                  `px-3 py-1.5 xl:px-3.5 xl:py-2 text-[13px] xl:text-[14px] font-semibold rounded-lg transition-all duration-200 whitespace-nowrap ${
+                    isActive
+                      ? 'text-[#ffcc00] bg-blue-600 font-bold shadow-md'
+                      : 'text-[#ffcc00]/80 hover:text-[#ffcc00] hover:bg-white/5'
+                  }`
+                }
+                end={link.path === '/'}
+              >
+                <span>{link.name}</span>
+              </NavLink>
+            ))}
           </nav>
 
           {/* Desktop Right CTA: Portals & Enquire Button */}
@@ -106,21 +100,21 @@ export const Navbar = () => {
               <button
                 type="button"
                 onClick={() => setIsPortalsOpen(!isPortalsOpen)}
-                className={`text-xs xl:text-sm font-semibold px-3 py-1.5 xl:px-3.5 xl:py-2 rounded-lg border transition-all flex items-center gap-1.5 bg-[#01083f]/60 shadow-sm cursor-pointer select-none ${
+                className={`text-xs xl:text-sm font-semibold px-3 py-1.5 xl:px-3.5 xl:py-2 rounded-lg border transition-all flex items-center gap-1.5 bg-[#222326] shadow-sm cursor-pointer select-none ${
                   isPortalsOpen
                     ? 'text-[#ffcc00] border-[#ffcc00] bg-white/10'
-                    : 'text-gray-100 border-white/20 hover:text-[#ffcc00] hover:border-[#ffcc00]'
+                    : 'text-[#ffcc00]/90 border-[#D4A72C]/30 hover:text-[#ffcc00] hover:border-[#ffcc00]'
                 }`}
                 aria-expanded={isPortalsOpen}
               >
                 <span>Portals</span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0 ${
-                  isPortalsOpen ? 'rotate-180 text-[#ffcc00]' : 'text-gray-300'
+                  isPortalsOpen ? 'rotate-180 text-[#ffcc00]' : 'text-[#ffcc00]'
                 }`} />
               </button>
 
               {isPortalsOpen && (
-                <div className="absolute right-0 top-full mt-2 w-52 bg-[#01083f] border border-[#ffcc00]/30 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="absolute right-0 top-full mt-2 w-52 bg-[#17181A] border border-[#D4A72C]/30 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                   {portalLinks.map((portal) => (
                     <Link
                       key={portal.path}
@@ -138,9 +132,8 @@ export const Navbar = () => {
 
             <Link
               to="/register"
-              className="bg-[#ffcc00] hover:bg-[#facc15] text-[#01083f] font-extrabold text-xs xl:text-sm px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-1.5 active:scale-95"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs xl:text-sm px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-1.5 active:scale-95"
             >
-              <PhoneCall className="w-3.5 h-3.5 fill-current" />
               <span>Enquire</span>
             </Link>
           </div>
@@ -149,13 +142,13 @@ export const Navbar = () => {
           <div className="flex lg:hidden items-center space-x-2">
             <Link 
               to="/register" 
-              className="bg-[#ffcc00] text-[#01083f] font-extrabold text-xs px-3 py-1.5 rounded-lg"
+              className="bg-blue-600 text-white font-extrabold text-xs px-3 py-1.5 rounded-lg"
             >
               Enquire
             </Link>
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-lg text-gray-200 hover:text-[#ffcc00] hover:bg-white/10 focus:outline-none cursor-pointer"
+              className="p-2 rounded-lg text-[#ffcc00] hover:bg-white/10 focus:outline-none cursor-pointer"
               aria-label="Toggle menu"
             >
               {isOpen ? <X className="w-6 h-6 text-[#ffcc00]" /> : <Menu className="w-6 h-6" />}
@@ -167,28 +160,24 @@ export const Navbar = () => {
 
       {/* Mobile Drawer Navigation */}
       {isOpen && (
-        <div className="lg:hidden bg-[#01083f] border-b border-[#ffcc00]/30 px-4 sm:px-6 pt-4 pb-6 space-y-4 shadow-2xl">
-          <div className="grid grid-cols-2 gap-2 border-b border-white/10 pb-4">
-            {navLinks.map((link) => {
-              const IconComp = link.icon;
-              return (
-                <NavLink
-                  key={link.path}
-                  to={link.path}
-                  className={({ isActive }) =>
-                    `px-3 py-2.5 text-sm font-semibold rounded-xl transition-all flex items-center gap-2 ${
-                      isActive
-                        ? 'text-[#ffcc00] bg-white/15 font-bold border border-[#ffcc00]/40 shadow-sm'
-                        : 'text-gray-200 hover:text-[#ffcc00] hover:bg-white/10'
-                    }`
-                  }
-                  end={link.path === '/'}
-                >
-                  <IconComp className="w-4 h-4 opacity-80" />
-                  <span>{link.name}</span>
-                </NavLink>
-              );
-            })}
+        <div className="lg:hidden bg-[#17181A] border-b border-[#D4A72C]/30 px-4 sm:px-6 pt-4 pb-6 space-y-4 shadow-2xl">
+          <div className="grid grid-cols-2 gap-2 border-b border-gray-800 pb-4">
+            {navLinks.map((link) => (
+              <NavLink
+                key={link.path}
+                to={link.path}
+                className={({ isActive }) =>
+                  `px-3 py-2.5 text-sm font-semibold rounded-xl transition-all ${
+                    isActive
+                      ? 'text-[#ffcc00] bg-blue-600 font-bold shadow-sm'
+                      : 'text-[#ffcc00]/85 hover:text-[#ffcc00] hover:bg-white/10'
+                  }`
+                }
+                end={link.path === '/'}
+              >
+                <span>{link.name}</span>
+              </NavLink>
+            ))}
           </div>
 
           {/* Portal quick access on mobile */}
