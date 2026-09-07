@@ -91,6 +91,30 @@ export const PartnerSection = () => {
       location: 'Bengaluru, Karnataka',
       iconBg: 'bg-indigo-50 text-indigo-900 border-indigo-100',
       logoUrl: null
+    },
+    {
+      name: 'Surana College, Peenya Campus',
+      short: 'Surana Peenya',
+      type: 'Academic Partner',
+      location: 'Peenya II Stage, Bengaluru - 560022',
+      iconBg: 'bg-rose-50 text-rose-800 border-rose-100',
+      logoUrl: null
+    },
+    {
+      name: 'Sri Jagadguru Renukacharya College (SJRC)',
+      short: 'SJRC',
+      type: 'Institutional Partner',
+      location: 'Race Course Road, Bengaluru - 560009',
+      iconBg: 'bg-orange-50 text-orange-800 border-orange-100',
+      logoUrl: null
+    },
+    {
+      name: 'Ramnarayan Chellaram College (RC College)',
+      short: 'RC College',
+      type: 'Commerce & Management Partner',
+      location: 'Palace Road, Gandhi Nagar, Bengaluru - 560001',
+      iconBg: 'bg-violet-50 text-violet-800 border-violet-100',
+      logoUrl: null
     }
   ];
 

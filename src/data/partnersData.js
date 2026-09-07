@@ -70,6 +70,33 @@ export const partnersData = [
     description: 'Statewide industry-academia initiative bridging youth skill gaps through practical software development internships.',
     studentsImpacted: '5,000+ Students',
     tag: 'Statewide Initiative'
+  },
+  {
+    id: 9,
+    name: 'Surana College, Peenya Campus',
+    type: 'Academic Partner',
+    location: 'Peenya II Stage, Bengaluru - 560022',
+    description: 'Established in 2017 under the GDA Foundation, this NAAC \'A\' Grade accredited private institute hosts academic collaboration drives, IT skill seminars, and project mentorship for BCA & B.Com students.',
+    studentsImpacted: '900+ Students',
+    tag: 'BCA / B.Com Focus'
+  },
+  {
+    id: 10,
+    name: 'Sri Jagadguru Renukacharya College (SJRC)',
+    type: 'Institutional Partner',
+    location: 'Race Course Road, Bengaluru - 560009',
+    description: 'A historic institution established in 1945 under the Veerashaiva Education Society, centrally located in Bengaluru. Collaboration covers final-year projects, IT workshops, and placement readiness programs.',
+    studentsImpacted: '1,800+ Students',
+    tag: 'Arts / Science / Commerce'
+  },
+  {
+    id: 11,
+    name: 'Ramnarayan Chellaram College (RC College)',
+    type: 'Commerce & Management Partner',
+    location: 'Palace Road, Gandhi Nagar, Bengaluru - 560001',
+    description: 'A premier public commerce and management institution near Chalukya Circle. Partnership focuses on business IT applications, ERP training, and management project support for BBA & B.Com students.',
+    studentsImpacted: '1,400+ Students',
+    tag: 'BBA / B.Com Management'
   }
 ];
 
