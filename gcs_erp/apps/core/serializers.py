@@ -25,9 +25,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         roles = user.get_role_codes()
 
         # Gather all permissions across roles
+        role_ids = user.user_roles.values_list('role_id', flat=True)
         permissions = list(
             Permission.objects.filter(
-                perm_roles__role__user_roles__user=user
+                perm_roles__role_id__in=role_ids
             ).values_list('code', flat=True).distinct()
         )
 

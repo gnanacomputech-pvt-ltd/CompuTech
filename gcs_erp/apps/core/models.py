@@ -74,8 +74,9 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     def has_perm_code(self, perm_code):
         if self.is_superuser:
             return True
+        role_ids = self.user_roles.values_list('role_id', flat=True)
         return RolePermission.objects.filter(
-            role__user_roles__user=self,
+            role_id__in=role_ids,
             permission__code=perm_code
         ).exists()
 

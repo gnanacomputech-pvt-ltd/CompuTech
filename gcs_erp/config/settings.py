@@ -38,7 +38,23 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'gcs-erp-dev-insecure-key-change-in-product
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0').split(',')
+ALLOWED_HOSTS = [
+    host.strip() for host in os.getenv(
+        'ALLOWED_HOSTS',
+        'localhost,127.0.0.1,0.0.0.0,.onrender.com,testserver'
+    ).split(',') if host.strip()
+]
+
+# Render / Reverse Proxy SSL Termination
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# CSRF Trusted Origins for Django Admin on Render HTTPS
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.getenv(
+        'CSRF_TRUSTED_ORIGINS',
+        'https://*.onrender.com,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173'
+    ).split(',') if origin.strip()
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -100,14 +116,16 @@ ASGI_APPLICATION = 'config.asgi.application'
 # Custom User Model (Section 3.1 & 6)
 AUTH_USER_MODEL = 'core.User'
 
-# Database Configuration (PostgreSQL in production, SQLite fallback for local dev)
+# Database Configuration (Supabase / PostgreSQL in production, SQLite fallback for local dev)
 DATABASE_URL = os.getenv('DATABASE_URL')
 if DATABASE_URL:
+    is_supabase = 'supabase.co' in DATABASE_URL
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
             conn_max_age=600,
-            conn_health_checks=True
+            conn_health_checks=True,
+            ssl_require=True if (not DEBUG or is_supabase) else False
         )
     }
 else:
@@ -212,6 +230,9 @@ CORS_ALLOWED_ORIGINS = [
         'CORS_ALLOWED_ORIGINS',
         'http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173'
     ).split(',') if origin.strip()
+]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.onrender\.com$",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
