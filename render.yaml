@@ -1,0 +1,149 @@
+﻿databases:
+  - name: gcs-erp-db
+    databaseName: gcs_erp_production
+    user: gcs_admin
+    plan: free          # upgrade to starter/standard for production
+
+  - name: gcs-erp-redis
+    ipAllowList: []     # only allow internal Render connections
+    plan: free          # NOTE: free Redis is ephemeral (90-day inactivity deletion)
+
+services:
+  # --- Django REST API -------------------------------------------------------
+  - type: web
+    name: gcs-erp-api
+    runtime: python
+    plan: free          # upgrade for production (free sleeps after 15 min inactivity)
+    rootDir: gcs_erp
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"  # update with your custom domain if any
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gcs-erp-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: gcs-erp-redis
+          property: connectionString
+      - key: CORS_ALLOWED_ORIGINS
+        value: ""   # set to frontend URL after first deploy
+      - key: FRONTEND_URL
+        value: ""   # set to frontend URL after first deploy
+      - key: EMAIL_BACKEND
+        value: django.core.mail.backends.console.EmailBackend
+      - key: MINIMUM_ATTENDANCE_PERCENTAGE
+        value: "75.0"
+      # Optional: Cloudflare R2 media storage
+      # - key: R2_ACCESS_KEY_ID
+      #   value: ""
+      # - key: R2_SECRET_ACCESS_KEY
+      #   value: ""
+      # - key: R2_BUCKET_NAME
+      #   value: ""
+      # - key: R2_ENDPOINT_URL
+      #   value: ""
+      # Optional: Sentry error monitoring
+      # - key: SENTRY_DSN
+      #   value: ""
+    healthCheckPath: /api/docs/
+
+  # --- Celery Worker ---------------------------------------------------------
+  - type: worker
+    name: gcs-erp-celery-worker
+    runtime: python
+    plan: starter       # workers require at least starter plan
+    rootDir: gcs_erp
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A config worker --loglevel=info --concurrency=2"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: SECRET_KEY
+        fromService:
+          type: web
+          name: gcs-erp-api
+          envVarKey: SECRET_KEY
+      - key: DEBUG
+        value: "False"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gcs-erp-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: gcs-erp-redis
+          property: connectionString
+
+  # --- Celery Beat Scheduler -------------------------------------------------
+  - type: worker
+    name: gcs-erp-celery-beat
+    runtime: python
+    plan: starter       # workers require at least starter plan
+    rootDir: gcs_erp
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A config beat --loglevel=info"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: SECRET_KEY
+        fromService:
+          type: web
+          name: gcs-erp-api
+          envVarKey: SECRET_KEY
+      - key: DEBUG
+        value: "False"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gcs-erp-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: gcs-erp-redis
+          property: connectionString
+
+  # --- React / Vite Frontend ------------------------------------------------
+  - type: web
+    name: gcs-erp-frontend
+    runtime: static
+    rootDir: CompuTech
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: dist
+    pullRequestPreviewsEnabled: true
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: "public, max-age=31536000, immutable"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-XSS-Protection
+        value: "1; mode=block"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: ""   # set to your API URL after first deploy

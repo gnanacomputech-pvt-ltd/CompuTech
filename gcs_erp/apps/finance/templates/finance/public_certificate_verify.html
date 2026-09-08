@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#222326">
+    <title>Certificate Verification — GCS ERP</title>
+    <style>
+        /* ── Reset & Base ─────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --brand-gold: #D4A72C;
+            --brand-gold-light: #F8F4E8;
+            --brand-charcoal: #222326;
+            --text-primary: #1a1a1a;
+            --text-secondary: #555;
+            --bg-page: #f4f4f6;
+            --bg-card: #ffffff;
+            --status-issued-bg: #d4edda;
+            --status-issued-text: #155724;
+            --status-revoked-bg: #f8d7da;
+            --status-revoked-text: #721c24;
+            --status-pending-bg: #fff3cd;
+            --status-pending-text: #856404;
+            --radius: 12px;
+            --shadow: 0 4px 24px rgba(0,0,0,.08);
+            --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        /* ── Dark mode ────────────────────────────────────────── */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --text-primary: #e8e8e8;
+                --text-secondary: #a0a0a0;
+                --bg-page: #161618;
+                --bg-card: #1e1e22;
+                --status-issued-bg: #1b3a2b;
+                --status-issued-text: #6fcf97;
+                --status-revoked-bg: #3b1c1f;
+                --status-revoked-text: #eb5757;
+                --status-pending-bg: #3b3010;
+                --status-pending-text: #f2c94c;
+                --shadow: 0 4px 24px rgba(0,0,0,.4);
+            }
+        }
+        html { font-size: 16px; }
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-page);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+        }
+        /* ── Card ──────────────────────────────────────────────── */
+        .verify-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            max-width: 520px;
+            width: 100%;
+            overflow: hidden;
+        }
+        /* ── Header ───────────────────────────────────────────── */
+        .card-header {
+            background: var(--brand-charcoal);
+            color: #fff;
+            padding: 28px 32px;
+            text-align: center;
+        }
+        .brand-logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: var(--brand-gold);
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .brand-tagline {
+            font-size: 0.78rem;
+            color: #aaa;
+            letter-spacing: 0.05em;
+        }
+        .card-header h1 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-top: 12px;
+            color: #fff;
+        }
+        /* ── Status Badge ─────────────────────────────────────── */
+        .status-section {
+            padding: 28px 32px 0;
+            text-align: center;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+        .status-badge.valid {
+            background: var(--status-issued-bg);
+            color: var(--status-issued-text);
+        }
+        .status-badge.revoked {
+            background: var(--status-revoked-bg);
+            color: var(--status-revoked-text);
+        }
+        .status-badge.pending {
+            background: var(--status-pending-bg);
+            color: var(--status-pending-text);
+        }
+        .status-badge .dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+        }
+        /* ── Details ─────────────────────────────────────────── */
+        .details-section {
+            padding: 20px 32px 28px;
+        }
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .detail-table tr + tr td {
+            padding-top: 14px;
+        }
+        .detail-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary);
+            font-weight: 600;
+            width: 38%;
+        }
+        .detail-value {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+        /* ── Divider ──────────────────────────────────────────── */
+        .divider {
+            height: 1px;
+            background: rgba(0,0,0,.06);
+            margin: 0 32px;
+        }
+        /* ── Revocation message ───────────────────────────────── */
+        .revocation-notice {
+            margin: 0 32px 28px;
+            padding: 14px 18px;
+            background: var(--status-revoked-bg);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: var(--status-revoked-text);
+            line-height: 1.5;
+        }
+        .revocation-notice strong {
+            font-weight: 700;
+        }
+        /* ── Footer ───────────────────────────────────────────── */
+        .card-footer {
+            padding: 16px 32px;
+            border-top: 1px solid rgba(0,0,0,.06);
+            text-align: center;
+        }
+        .card-footer p {
+            font-size: 0.73rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        /* ── Not Found ────────────────────────────────────────── */
+        .not-found {
+            text-align: center;
+            padding: 48px 32px;
+        }
+        .not-found .icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            opacity: 0.4;
+        }
+        .not-found h2 {
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+        .not-found p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        /* ── Print ─────────────────────────────────────────────── */
+        @media print {
+            body { background: #fff; }
+            .verify-card { box-shadow: none; border: 1px solid #ddd; }
+            .card-footer { display: none; }
+        }
+        /* ── Mobile tweaks ─────────────────────────────────────── */
+        @media (max-width: 480px) {
+            .card-header, .details-section, .status-section, .card-footer {
+                padding-left: 20px; padding-right: 20px;
+            }
+            .divider, .revocation-notice { margin-left: 20px; margin-right: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="verify-card">
+
+        {% if not_found %}
+            <!-- ── Not Found State ─────────────────────────── -->
+            <div class="card-header">
+                <span class="brand-logo">Gnana Computech Solutions</span>
+                <span class="brand-tagline">Certificate Verification</span>
+                <h1>Verification Result</h1>
+            </div>
+            <div class="not-found">
+                <div class="icon">🔍</div>
+                <h2>Certificate Not Found</h2>
+                <p>The certificate with this verification token does not exist.<br>Please check the certificate or contact the issuing authority.</p>
+            </div>
+
+        {% elif certificate %}
+            <!-- ── Certificate Details ─────────────────────── -->
+            <div class="card-header">
+                <span class="brand-logo">Gnana Computech Solutions</span>
+                <span class="brand-tagline">Certificate Verification</span>
+                <h1>Verification Result</h1>
+            </div>
+
+            <div class="status-section">
+                {% if certificate.status == 'ISSUED' %}
+                    <span class="status-badge valid"><span class="dot"></span>✅ Verified — Authentic</span>
+                {% elif certificate.status == 'REVOKED' %}
+                    <span class="status-badge revoked"><span class="dot"></span>⚠️ Revoked</span>
+                {% else %}
+                    <span class="status-badge pending"><span class="dot"></span>⏳ Not Yet Issued</span>
+                {% endif %}
+            </div>
+
+            <div class="divider" style="margin-top:24px;"></div>
+
+            <div class="details-section">
+                <table class="detail-table">
+                    <tr>
+                        <td class="detail-label">Certificate No.</td>
+                        <td class="detail-value">{{ certificate.certificate_number }}</td>
+                    </tr>
+                    <tr>
+                        <td class="detail-label">Recipient</td>
+                        <td class="detail-value">{{ certificate.student_name }}</td>
+                    </tr>
+                    <tr>
+                        <td class="detail-label">Program</td>
+                        <td class="detail-value">{{ certificate.program }}</td>
+                    </tr>
+                    <tr>
+                        <td class="detail-label">Institution</td>
+                        <td class="detail-value">{{ certificate.institution }}</td>
+                    </tr>
+                    <tr>
+                        <td class="detail-label">Issue Date</td>
+                        <td class="detail-value">{{ certificate.issue_date|date:"d MMMM Y" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="detail-label">Status</td>
+                        <td class="detail-value">
+                            <strong>{{ certificate.get_status_display|default:certificate.status }}</strong>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="detail-label">Message</td>
+                        <td class="detail-value">{{ certificate.verification_message }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            {% if certificate.status == 'REVOKED' and certificate.revocation_reason %}
+                <div class="revocation-notice">
+                    <strong>Revocation Reason:</strong> {{ certificate.revocation_reason }}
+                </div>
+            {% endif %}
+
+            <div class="card-footer">
+                <p>Issued by Gnana Computech Solutions Private Limited<br>
+                ISO 9001:2015 Certified · Bangalore North, Karnataka, India<br>
+                <strong>{{ certificate.certificate_number }}</strong></p>
+            </div>
+        {% endif %}
+
+    </div>
+</body>
+</html>

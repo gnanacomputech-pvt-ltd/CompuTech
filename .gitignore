@@ -18,3 +18,16 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# ── Python / Django (gcs_erp backend) ────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+gcs_erp/.env
+gcs_erp/db.sqlite3
+gcs_erp/staticfiles/
+gcs_erp/media/certificates/
+gcs_erp/media/avatars/
+gcs_erp/media/assignments/
+*.log

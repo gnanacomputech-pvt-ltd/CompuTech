@@ -1,0 +1,95 @@
+# ── Python / Django ──────────────────────────────────────────────────────────
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env.local
+.env.*.local
+
+# Django
+*.log
+*.pot
+*.pyc
+db.sqlite3
+db.sqlite3-journal
+/media/certificates/**
+/media/avatars/**
+/media/assignments/**
+/staticfiles/
+/static/
+*.mo
+*.sqlite
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Environments
+.env
+.env.backup
+.env.secrets
+.env.production
+
+# mypy / coverage
+.mypy_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+.pytest_cache/
+*.cache
+.vault/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+.dockerignore
+
+# ── Node / Frontend (CompuTech) ───────────────────────────────────────────────
+CompuTech/node_modules/
+CompuTech/.env
+CompuTech/.env.local
+CompuTech/dist/
+CompuTech/build/
+CompuTech/.vite/
+CompuTech/coverage/
+*.tsbuildinfo
+
+# ── Credentials / Secrets ───────────────────────────────────────────────────────
+*.pem
+*.key
+*.crt
+*.csr
+credentials.json
+service-account-key.json
+
+# ── Backup files ───────────────────────────────────────────────────────────────
+*.bak
+*.backup
+*.tar.gz
+*.zip
+/backups/
+
+# ── Misc ────────────────────────────────────────────────────────────────────────
+*.csv
+*.xlsx
+notes/
+TODO.md
+CLAUDE.md
