@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/v1/', include('apps.core.urls')),
     path('api/v1/academics/', include('apps.academics.urls')),
     path('api/v1/', include('apps.finance.urls')),
+    path('api/v1/', include('apps.website.urls')),
 
     # Public QR web verification page — mobile-friendly, mobile-first, no auth
     # Rate-limited via nginx zone 'public_verify_limit' configured in docker/nginx/nginx.conf

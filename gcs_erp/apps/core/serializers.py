@@ -77,6 +77,34 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     new_password = serializers.CharField(required=True, min_length=8)
 
 
+class UserRegistrationSerializer(serializers.Serializer):
+    """
+    Self-registration serializer for the public /signup page.
+    Creates a User account with the STUDENT role.
+    Returns JWT tokens on success (same shape as the login response).
+    """
+    email = serializers.EmailField(required=True)
+    full_name = serializers.CharField(required=True, max_length=255)
+    phone = serializers.CharField(required=False, allow_blank=True, max_length=20)
+    password = serializers.CharField(required=True, min_length=8, write_only=True)
+    confirm_password = serializers.CharField(required=True, write_only=True)
+
+    def validate_email(self, value):
+        value = value.lower().strip()
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(
+                "An account with this email address already exists."
+            )
+        return value
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['confirm_password']:
+            raise serializers.ValidationError(
+                {"confirm_password": "Passwords do not match."}
+            )
+        return attrs
+
+
 class UserSerializer(serializers.ModelSerializer):
     roles = serializers.SerializerMethodField()
 

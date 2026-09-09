@@ -78,6 +78,7 @@ INSTALLED_APPS = [
     'apps.core',
     'apps.academics',
     'apps.finance',
+    'apps.website',
 ]
 
 MIDDLEWARE = [

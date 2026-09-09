@@ -12,6 +12,7 @@ from django.template.loader import render_to_string
 from django.core.mail import send_mail
 from django.conf import settings
 from django.db import connection
+from django.db.models import Sum, Count, Q
 
 from apps.common.permissions import IsSuperAdmin, IsERPStaff
 from apps.core.models import (
@@ -20,6 +21,7 @@ from apps.core.models import (
 from apps.core.serializers import (
     CustomTokenObtainPairSerializer, ChangePasswordSerializer,
     PasswordResetSerializer, PasswordResetConfirmSerializer,
+    UserRegistrationSerializer,
     UserSerializer, InstitutionSerializer, DepartmentSerializer, ProgramSerializer,
     BatchSerializer, StudentSerializer, EmployeeSerializer, EnrollmentSerializer
 )
@@ -290,3 +292,213 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+
+# ---------------------------------------------------------------------------
+# User Self-Registration (Signup)
+# ---------------------------------------------------------------------------
+
+class UserRegistrationView(APIView):
+    """
+    POST /api/v1/auth/register/
+    Public endpoint for new student self-registration from the /signup page.
+
+    On success:
+    - Creates a User with is_verified=False and role STUDENT
+    - Returns a JWT token pair + user profile (same envelope as login)
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Create the User
+        user = User.objects.create_user(
+            email=data['email'],
+            password=data['password'],
+            full_name=data['full_name'],
+            phone=data.get('phone', ''),
+            is_active=True,
+            is_verified=False,  # Awaiting email verification in a future iteration
+        )
+
+        # Assign STUDENT role
+        try:
+            from apps.core.models import Role, UserRole
+            student_role, _ = Role.objects.get_or_create(
+                code='STUDENT',
+                defaults={'name': 'Enrolled Learner', 'description': 'Student self-service portal'}
+            )
+            UserRole.objects.get_or_create(user=user, role=student_role)
+        except Exception:
+            pass  # Role assignment failure should not block account creation
+
+        # Issue tokens immediately (same shape as login)
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user)
+        refresh['email'] = user.email
+        refresh['full_name'] = user.full_name
+        refresh['roles'] = user.get_role_codes()
+
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": {
+                    "id": str(user.id),
+                    "email": user.email,
+                    "full_name": user.full_name,
+                    "phone": user.phone,
+                    "is_verified": user.is_verified,
+                    "roles": user.get_role_codes(),
+                },
+                "_message": "Account created successfully. Welcome to GCS Portal!",
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+# ---------------------------------------------------------------------------
+# ERP Dashboard Analytics
+# ---------------------------------------------------------------------------
+
+class DashboardStatsView(APIView):
+    """
+    GET /api/v1/dashboard/stats/
+    Returns aggregate summary statistics for the ERP dashboard.
+    Requires authentication; ERP staff see global stats, students see their own.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        user_roles = user.get_role_codes()
+        is_erp_staff = user.is_staff or user.is_superuser or bool(
+            set(user_roles) & {
+                'SUPER_ADMIN', 'ADMIN', 'HR', 'ACCOUNTS', 'ACADEMIC_COORDINATOR',
+                'INTERNSHIP_COORDINATOR', 'PROJECT_COORDINATOR', 'TRAINER',
+                'MENTOR', 'PLACEMENT_OFFICER', 'CONTENT_MANAGER'
+            }
+        )
+
+        if is_erp_staff:
+            return self._erp_stats(request)
+        elif 'STUDENT' in user_roles:
+            return self._student_stats(request)
+        elif 'INSTITUTION_COORDINATOR' in user_roles:
+            return self._institution_stats(request)
+
+        return Response({"detail": "No dashboard stats available for your role."})
+
+    def _erp_stats(self, request):
+        """Global aggregate stats for ERP admin/staff dashboard."""
+        from apps.finance.models import Invoice, Certificate
+
+        enrollment_stats = Enrollment.objects.aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(status='ACTIVE')),
+            completed=Count('id', filter=Q(status='COMPLETED')),
+            applied=Count('id', filter=Q(status='APPLIED')),
+        )
+
+        finance_stats = Invoice.objects.aggregate(
+            total_invoiced=Sum('total_amount'),
+            total_collected=Sum('paid_amount'),
+        )
+        total_invoiced = finance_stats['total_invoiced'] or 0
+        total_collected = finance_stats['total_collected'] or 0
+
+        return Response({
+            "students": {
+                "total": Student.objects.count(),
+                "active": Student.objects.filter(is_active=True).count(),
+            },
+            "enrollments": {
+                "total": enrollment_stats['total'],
+                "active": enrollment_stats['active'],
+                "completed": enrollment_stats['completed'],
+                "applied_pending": enrollment_stats['applied'],
+            },
+            "batches": {
+                "total": Batch.objects.count(),
+                "active": Batch.objects.filter(status='ACTIVE').count(),
+                "upcoming": Batch.objects.filter(status='UPCOMING').count(),
+            },
+            "finance": {
+                "total_invoiced": float(total_invoiced),
+                "total_collected": float(total_collected),
+                "pending_fees": float(total_invoiced - total_collected),
+            },
+            "certificates": {
+                "issued": Certificate.objects.filter(status='ISSUED').count(),
+                "draft": Certificate.objects.filter(status='DRAFT').count(),
+                "revoked": Certificate.objects.filter(status='REVOKED').count(),
+            },
+            "programs": {
+                "total": Program.objects.count(),
+            },
+            "institutions": {
+                "total": Institution.objects.count(),
+            },
+        })
+
+    def _student_stats(self, request):
+        """Stats scoped to the authenticated student's own profile."""
+        try:
+            student = request.user.student_profile
+        except Student.DoesNotExist:
+            return Response({"detail": "Student profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        enrollments = student.enrollments.all()
+        enrollment_list = []
+        for enr in enrollments.select_related('program', 'batch'):
+            try:
+                progress = enr.academic_progress
+                attendance_pct = float(progress.attendance_percentage)
+            except Exception:
+                attendance_pct = 0.0
+            enrollment_list.append({
+                "enrollment_id": str(enr.id),
+                "business_id": enr.business_id,
+                "program": enr.program.title,
+                "batch": enr.batch.name,
+                "status": enr.status,
+                "attendance_percentage": attendance_pct,
+            })
+
+        return Response({
+            "student": {
+                "name": request.user.full_name,
+                "business_id": student.business_id,
+                "degree": student.degree,
+                "semester": student.semester,
+            },
+            "enrollments": enrollment_list,
+            "total_enrollments": len(enrollment_list),
+        })
+
+    def _institution_stats(self, request):
+        """Stats scoped to the institution the coordinator manages."""
+        institutions = Institution.objects.filter(coordinator=request.user)
+        if not institutions.exists():
+            return Response({"detail": "No institution linked to your account."})
+
+        stats = []
+        for inst in institutions:
+            enr_stats = Enrollment.objects.filter(institution=inst).aggregate(
+                total=Count('id'),
+                active=Count('id', filter=Q(status='ACTIVE')),
+                completed=Count('id', filter=Q(status='COMPLETED')),
+            )
+            stats.append({
+                "institution": inst.name,
+                "code": inst.code,
+                "students": inst.students.filter(is_active=True).count(),
+                "enrollments": enr_stats,
+                "active_batches": inst.batches.filter(status='ACTIVE').count(),
+            })
+
+        return Response({"institutions": stats})
+

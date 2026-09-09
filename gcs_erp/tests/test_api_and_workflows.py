@@ -28,7 +28,7 @@ class GCSErpFullWorkflowTests(APITestCase):
             password='AdminPassword123!',
             full_name='Admin User'
         )
-        UserRole.objects.create(user=self.admin, role=self.super_role)
+        UserRole.objects.get_or_create(user=self.admin, role=self.super_role)
 
         # 3. Setup Student User
         self.student_user = User.objects.create_user(
@@ -91,10 +91,11 @@ class GCSErpFullWorkflowTests(APITestCase):
             'password': 'AdminPassword123!'
         })
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data['success'])
-        self.assertIn('access', response.data['data'])
-        self.assertIn('refresh', response.data['data'])
-        self.assertEqual(response.data['data']['user']['email'], 'admin@gnanacomputech.com')
+        json_data = response.json()
+        self.assertTrue(json_data['success'])
+        self.assertIn('access', json_data['data'])
+        self.assertIn('refresh', json_data['data'])
+        self.assertEqual(json_data['data']['user']['email'], 'admin@gnanacomputech.com')
 
         # Invalid login -> error envelope
         invalid_resp = self.client.post('/api/v1/auth/login/', {
@@ -214,7 +215,7 @@ class GCSErpFullWorkflowTests(APITestCase):
         res = self.client.get(verify_url)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        data = res.data['data']
+        data = res.json()['data']
         self.assertEqual(data['certificate_number'], cert.certificate_number)
         self.assertEqual(data['student_name'], self.student_user.full_name)
         self.assertEqual(data['program'], self.program.title)
@@ -254,9 +255,10 @@ class GCSErpFullWorkflowTests(APITestCase):
         verify_url = f"/api/v1/public/certificates/verify/{cert.token}/"
         res = self.client.get(verify_url)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data['data']['status'], 'REVOKED')
-        self.assertFalse(res.data['data']['is_valid'])
-        self.assertIn("Data entry error on USN", res.data['data']['revocation_reason'])
+        res_data = res.json()['data']
+        self.assertEqual(res_data['status'], 'REVOKED')
+        self.assertFalse(res_data['is_valid'])
+        self.assertIn("Data entry error on USN", res_data['revocation_reason'])
 
         # Reissue certificate
         new_cert = CertificateGenerator.reissue_certificate(cert, reason="Corrected USN", reissued_by=self.admin)

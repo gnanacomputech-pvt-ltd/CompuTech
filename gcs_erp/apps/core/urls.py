@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from apps.core.views import (
     HealthCheckView, LoginView, LogoutView, CurrentUserView, ChangePasswordView,
-    PasswordResetRequestView, PasswordResetConfirmView,
+    PasswordResetRequestView, PasswordResetConfirmView, UserRegistrationView,
+    DashboardStatsView,
     InstitutionViewSet, DepartmentViewSet, ProgramViewSet,
     BatchViewSet, StudentViewSet, EmployeeViewSet, EnrollmentViewSet
 )
@@ -23,6 +24,7 @@ urlpatterns = [
 
     # Auth Endpoints (Section 5.2)
     path('auth/login/', LoginView.as_view(), name='auth_login'),
+    path('auth/register/', UserRegistrationView.as_view(), name='auth_register'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='auth_refresh'),
     path('auth/logout/', LogoutView.as_view(), name='auth_logout'),
     path('auth/me/', CurrentUserView.as_view(), name='auth_me'),
@@ -30,6 +32,9 @@ urlpatterns = [
     # Password reset flow (Section 5.2)
     path('auth/forgot-password/', PasswordResetRequestView.as_view(), name='auth_forgot_password'),
     path('auth/reset-password/', PasswordResetConfirmView.as_view(), name='auth_reset_password'),
+
+    # Dashboard Analytics
+    path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard_stats'),
 
     # Master Data ViewSets
     path('', include(router.urls)),
