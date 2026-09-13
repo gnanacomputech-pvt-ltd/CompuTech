@@ -1,0 +1,27 @@
+version: 1.0
+runtime: python3
+build:
+  commands:
+    build:
+      - pip install -r requirements/prod.txt
+      - python manage.py collectstatic --noinput
+run:
+  command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 4 --timeout 120
+  network:
+    port: 8000
+    env: APP_PORT
+  env:
+    - name: DJANGO_SETTINGS_MODULE
+      value: config.settings
+    - name: PYTHONUNBUFFERED
+      value: "1"
+    - name: DEBUG
+      value: "False"
+    - name: ALLOWED_HOSTS
+      value: ".awsapprunner.com,localhost,127.0.0.1"
+    - name: USE_SES
+      value: "True"
+    - name: AWS_SES_REGION_NAME
+      value: "ap-south-1"
+    - name: AWS_S3_REGION_NAME
+      value: "ap-south-1"

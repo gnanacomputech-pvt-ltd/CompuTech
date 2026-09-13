@@ -16,6 +16,8 @@ class WebsiteInquiryTests(APITestCase):
     """Tests for public contact and registration forms and staff management."""
 
     def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
         self.staff_role, _ = Role.objects.get_or_create(code='ADMIN', defaults={'name': 'Admin'})
         self.staff_user = User.objects.create_user(
             email='admin_website@example.com',
