@@ -1,5 +1,4 @@
-﻿# GCS ERP — Render production dependencies
-# Render's Python buildpack installs from this file.
+# GCS ERP — Python Production Dependencies
 -r requirements/prod.txt
 dj-database-url>=2.1.0
 whitenoise>=6.6.0
