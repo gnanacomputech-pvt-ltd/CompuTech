@@ -3,6 +3,11 @@ name: Deploy — Staging (AWS ECS Fargate)
 on:
   push:
     branches: [ develop ]
+    paths:
+      - 'gcs_erp/**'
+      - 'infra/**'
+      - '.github/workflows/deploy-staging.yml'
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -31,17 +36,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check AWS configuration
+        id: check-aws
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+        run: |
+          if [ -n "$AWS_ROLE_ARN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AWS deployment skipped: AWS_ROLE_ARN secret is not configured in repository settings."
+          fi
+
       - name: Configure AWS credentials
+        if: steps.check-aws.outputs.configured == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
 
       - name: Login to Amazon ECR
+        if: steps.check-aws.outputs.configured == 'true'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Check for uncommitted migrations
+        if: steps.check-aws.outputs.configured == 'true'
         run: |
           git add gcs_erp/apps/*/migrations/
           git diff --cached --exit-code --quiet || {
@@ -50,6 +70,7 @@ jobs:
           }
 
       - name: Build, tag, and push image to Amazon ECR
+        if: steps.check-aws.outputs.configured == 'true'
         id: build
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -62,6 +83,7 @@ jobs:
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Deploy API service
+        if: steps.check-aws.outputs.configured == 'true'
         env:
           IMAGE: ${{ steps.build.outputs.image }}
         run: |
@@ -76,6 +98,7 @@ jobs:
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_API"
 
       - name: Deploy Celery worker service
+        if: steps.check-aws.outputs.configured == 'true'
         env:
           IMAGE: ${{ steps.build.outputs.image }}
         run: |
@@ -90,6 +113,7 @@ jobs:
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_WORKER"
 
       - name: Deploy Celery beat service
+        if: steps.check-aws.outputs.configured == 'true'
         env:
           IMAGE: ${{ steps.build.outputs.image }}
         run: |
@@ -104,6 +128,7 @@ jobs:
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_BEAT"
 
       - name: Smoke test
+        if: steps.check-aws.outputs.configured == 'true'
         run: |
           echo "Staging deployment complete — commit ${{ github.sha }}"
           date

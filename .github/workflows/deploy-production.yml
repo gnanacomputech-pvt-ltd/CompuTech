@@ -3,6 +3,10 @@ name: Deploy — Production (AWS ECS Fargate)
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'gcs_erp/**'
+      - 'infra/**'
+      - '.github/workflows/deploy-production.yml'
   workflow_dispatch:
     inputs:
       reason:
@@ -39,7 +43,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check AWS configuration
+        id: check-aws
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+        run: |
+          if [ -n "$AWS_ROLE_ARN" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AWS deployment skipped: AWS_ROLE_ARN secret is not configured in repository settings."
+          fi
+
       - name: Confirm production deploy
+        if: steps.check-aws.outputs.configured == 'true'
         run: |
           echo "About to deploy commit ${{ github.sha }} to PRODUCTION"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -47,16 +64,19 @@ jobs:
           fi
 
       - name: Configure AWS credentials
+        if: steps.check-aws.outputs.configured == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
 
       - name: Login to Amazon ECR
+        if: steps.check-aws.outputs.configured == 'true'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Confirm recent backup exists
+        if: steps.check-aws.outputs.configured == 'true'
         run: |
           echo "=== Pre-deploy backup check ==="
           echo "RDS Multi-AZ automated snapshots run continuously; this only checks the independent scripted pg_dump copy (scripts/backup_db_to_s3.sh)."
@@ -67,6 +87,7 @@ jobs:
           fi
 
       - name: Build, tag, and push image to Amazon ECR
+        if: steps.check-aws.outputs.configured == 'true'
         id: build
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -84,6 +105,7 @@ jobs:
       # definition is currently live, it never reconstructs one from a
       # committed template that could drift from what Terraform applied.
       - name: Deploy API service
+        if: steps.check-aws.outputs.configured == 'true'
         env:
           IMAGE: ${{ steps.build.outputs.image }}
         run: |
@@ -98,6 +120,7 @@ jobs:
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_API"
 
       - name: Deploy Celery worker service
+        if: steps.check-aws.outputs.configured == 'true'
         run: |
           aws ecs describe-task-definition --task-definition "$TASK_FAMILY_WORKER" \
             --query 'taskDefinition' > worker-task-def.json
@@ -112,6 +135,7 @@ jobs:
           IMAGE: ${{ steps.build.outputs.image }}
 
       - name: Deploy Celery beat service
+        if: steps.check-aws.outputs.configured == 'true'
         run: |
           aws ecs describe-task-definition --task-definition "$TASK_FAMILY_BEAT" \
             --query 'taskDefinition' > beat-task-def.json
@@ -126,6 +150,7 @@ jobs:
           IMAGE: ${{ steps.build.outputs.image }}
 
       - name: Smoke test
+        if: steps.check-aws.outputs.configured == 'true'
         run: |
           echo "=== Running smoke test ==="
           curl -f -sS "https://${{ secrets.API_HOSTNAME || 'api.gnanacomputech.com' }}/api/v1/health/" -o /dev/null \
@@ -133,13 +158,14 @@ jobs:
             || { echo "::error::Health check failed — check CloudWatch logs before trusting this deploy"; exit 1; }
 
       - name: Run RDS failover test (optional, pre-go-live)
-        if: github.event.inputs.reason == 'Pre-go-live failover test'
+        if: steps.check-aws.outputs.configured == 'true' && github.event.inputs.reason == 'Pre-go-live failover test'
         run: |
           echo "=== Initiating RDS Multi-AZ failover test ==="
           aws rds reboot-db-instance --db-instance-identifier ${{ secrets.RDS_INSTANCE_ID }} --force-failover
           echo "Failover initiated — verify automatic recovery in the RDS console."
 
       - name: Deployment complete
+        if: steps.check-aws.outputs.configured == 'true'
         run: |
           echo "=== Production deployment complete ==="
           echo "Commit: ${{ github.sha }}"
