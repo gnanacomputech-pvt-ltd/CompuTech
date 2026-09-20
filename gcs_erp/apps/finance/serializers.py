@@ -58,9 +58,14 @@ class CertificateSerializer(serializers.ModelSerializer):
 
 class PublicCertificateVerificationSerializer(serializers.Serializer):
     """
-    Strictly non-sensitive fields only (Section 5.3):
-    certificate_number, student_name, program, institution, status, issue_date.
-    NEVER exposes phone, email, DOB, address, payment details, or government ID.
+    QR-scan verification payload (product decision — owner request):
+    Exposes the certificate holder's full PERSONAL and COURSE details so anyone
+    scanning the QR on a physical certificate can confirm everything it stands
+    for. Financial data (invoices, payments, fees) remains strictly private.
+
+    Personal : name, email, phone, student ID, USN, degree, semester, branch
+    Course   : program, batch, enrollment status, enrolled/completed dates,
+               attendance percentage
     """
     certificate_number = serializers.CharField()
     student_name = serializers.CharField()
@@ -71,3 +76,17 @@ class PublicCertificateVerificationSerializer(serializers.Serializer):
     is_valid = serializers.BooleanField()
     verification_message = serializers.CharField()
     revocation_reason = serializers.CharField(allow_blank=True, required=False)
+    # ---- Personal details ----
+    student_id = serializers.CharField()
+    usn = serializers.CharField()
+    email = serializers.EmailField()
+    phone = serializers.CharField(allow_blank=True)
+    degree = serializers.CharField(allow_blank=True)
+    semester = serializers.IntegerField()
+    branch = serializers.CharField(allow_blank=True)
+    # ---- Course details ----
+    batch = serializers.CharField()
+    enrollment_status = serializers.CharField()
+    enrolled_on = serializers.DateField()
+    completed_on = serializers.DateField(allow_null=True)
+    attendance_percentage = serializers.FloatField()

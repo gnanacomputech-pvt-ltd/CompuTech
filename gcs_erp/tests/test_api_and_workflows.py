@@ -223,13 +223,28 @@ class GCSErpFullWorkflowTests(APITestCase):
         self.assertEqual(data['status'], 'ISSUED')
         self.assertTrue(data['is_valid'])
 
-        # Verify NEVER exposes sensitive fields
-        self.assertNotIn('phone', data)
-        self.assertNotIn('email', data)
-        self.assertNotIn('dob', data)
-        self.assertNotIn('address', data)
+        # Personal details of the certificate holder are present on scan
+        # (owner request: QR scan shows full personal + course details)
+        self.assertEqual(data['email'], self.student_user.email)
+        self.assertEqual(data['phone'], self.student_user.phone)
+        self.assertEqual(data['student_id'], self.student_profile.business_id)
+        self.assertEqual(data['usn'], self.student_profile.usn)
+        self.assertEqual(data['degree'], self.student_profile.degree)
+        self.assertEqual(data['semester'], self.student_profile.semester)
+        self.assertIn('branch', data)
+
+        # Course details are present on scan
+        self.assertEqual(data['batch'], self.batch.name)
+        self.assertEqual(data['enrollment_status'], 'COMPLETED')
+        self.assertIn('enrolled_on', data)
+        self.assertIn('completed_on', data)
+        self.assertIn('attendance_percentage', data)
+
+        # Financial data is never exposed publicly
         self.assertNotIn('payment', data)
         self.assertNotIn('transaction_id', data)
+        self.assertNotIn('invoice', data)
+        self.assertNotIn('fees', data)
 
     def test_05_revocation_and_reissue_preserves_traceability(self):
         """
@@ -267,3 +282,43 @@ class GCSErpFullWorkflowTests(APITestCase):
         self.assertEqual(new_cert.parent_certificate, cert)
         self.assertTrue(bool(new_cert.qr_code_image))
         self.assertTrue(bool(new_cert.pdf_file))
+
+    def test_06_admin_full_access_to_student_data(self):
+        """
+        Admin/ERP staff get full access to a student's personal, professional
+        and course details via the student detail endpoint.
+        """
+        self.client.force_authenticate(user=self.admin)
+
+        # Detail endpoint returns the full profile
+        res = self.client.get(f'/api/v1/students/{self.student_profile.id}/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        data = res.json()['data']
+
+        # Personal data
+        self.assertEqual(data['user_details']['full_name'], self.student_user.full_name)
+        self.assertEqual(data['user_details']['email'], self.student_user.email)
+        self.assertEqual(data['user_details']['phone'], self.student_user.phone)
+
+        # Professional data
+        self.assertEqual(data['business_id'], self.student_profile.business_id)
+        self.assertEqual(data['usn'], '1BI22CA099')
+        self.assertEqual(data['degree'], 'BCA')
+        self.assertEqual(data['semester'], 6)
+        self.assertEqual(data['institution_name'], self.institution.name)
+
+        # Course details (nested enrollments)
+        self.assertEqual(len(data['enrollments']), 1)
+        enrollment = data['enrollments'][0]
+        self.assertEqual(enrollment['program_title'], self.program.title)
+        self.assertEqual(enrollment['batch_name'], self.batch.name)
+        self.assertEqual(enrollment['status'], 'ACTIVE')
+        self.assertIn('attendance_percentage', enrollment)
+        self.assertIn('enrolled_at', enrollment)
+        self.assertIn('coordinator_approval', enrollment)
+
+        # Admin list endpoint shows every student
+        list_res = self.client.get('/api/v1/students/')
+        self.assertEqual(list_res.status_code, status.HTTP_200_OK)
+        list_data = list_res.json()['data']
+        self.assertEqual(list_data['count'], 1)

@@ -191,10 +191,15 @@ class CertificateGenerator:
         p.setFillColor(charcoal)
         p.drawCentredString(width / 2.0, height - 360, f"Batch: {batch_name} | Issued on {issue_date_str}")
 
-        # Draw QR Code if available
+        # Draw QR Code if available (bottom-left, next to the verification note).
+        # Read via Django storage API so this works with local storage AND
+        # remote backends (S3/R2) where FileField.path is not available.
         if certificate.qr_code_image:
             try:
-                qr_img = Image.open(certificate.qr_code_image.path)
+                from django.core.files.storage import default_storage
+                with default_storage.open(certificate.qr_code_image.name, 'rb') as qr_file:
+                    qr_img = Image.open(qr_file)
+                    qr_img.load()  # read pixels before the handle closes
                 p.drawInlineImage(qr_img, 60, 45, width=90, height=90)
             except Exception:
                 pass

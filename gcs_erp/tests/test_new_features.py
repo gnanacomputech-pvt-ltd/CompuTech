@@ -210,9 +210,15 @@ class PublicCertificateWebVerifyTests(APITestCase):
         content = res.content.decode('utf-8')
         self.assertIn('Revoked', content)
         self.assertIn('Test revocation', content)
-        # Sensitive fields should NOT appear
-        self.assertNotIn('student@example.com', content)
-        self.assertNotIn(self.student_user.phone or 'phone', content)
+        # Owner request: even when revoked, the QR page still shows the
+        # holder's personal and course details (status stays REVOKED).
+        self.assertIn('student@example.com', content)
+        self.assertIn('WV001', content)
+        self.assertIn('Web Verify Batch', content)
+        self.assertIn('COMPLETED', content)
+        # Financial data must never appear on the public page
+        self.assertNotIn('Invoice', content)
+        self.assertNotIn('Payment', content)
 
     def test_04_web_verify_page_is_mobile_responsive(self):
         """The page should have viewport meta tag for mobile devices."""

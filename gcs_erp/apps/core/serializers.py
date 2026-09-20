@@ -150,16 +150,6 @@ class BatchSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'business_id', 'created_at', 'updated_at']
 
 
-class StudentSerializer(serializers.ModelSerializer):
-    user_details = UserSerializer(source='user', read_only=True)
-    institution_name = serializers.ReadOnlyField(source='institution.name')
-
-    class Meta:
-        model = Student
-        fields = '__all__'
-        read_only_fields = ['id', 'business_id', 'created_at', 'updated_at']
-
-
 class EmployeeSerializer(serializers.ModelSerializer):
     user_details = UserSerializer(source='user', read_only=True)
     department_name = serializers.ReadOnlyField(source='department.name')
@@ -176,8 +166,33 @@ class EnrollmentSerializer(serializers.ModelSerializer):
     program_title = serializers.ReadOnlyField(source='program.title')
     batch_name = serializers.ReadOnlyField(source='batch.name')
     institution_name = serializers.ReadOnlyField(source='institution.name')
+    attendance_percentage = serializers.SerializerMethodField()
 
     class Meta:
         model = Enrollment
         fields = '__all__'
         read_only_fields = ['id', 'business_id', 'enrolled_at', 'created_at', 'updated_at']
+
+    def get_attendance_percentage(self, obj):
+        try:
+            return float(obj.academic_progress.attendance_percentage)
+        except Exception:
+            return 0.0
+
+
+class StudentSerializer(serializers.ModelSerializer):
+    """
+    Full student record for ERP staff/admin:
+    - Personal data    -> user_details (name, email, phone, account status)
+    - Professional data-> business_id, USN, degree, branch, semester, institution
+    - Course details   -> nested enrollments (program, batch, status, dates,
+                          coordinator approval, attendance percentage)
+    """
+    user_details = UserSerializer(source='user', read_only=True)
+    institution_name = serializers.ReadOnlyField(source='institution.name')
+    enrollments = EnrollmentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Student
+        fields = '__all__'
+        read_only_fields = ['id', 'business_id', 'created_at', 'updated_at']

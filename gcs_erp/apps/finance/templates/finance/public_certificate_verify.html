@@ -154,6 +154,18 @@
             background: rgba(0,0,0,.06);
             margin: 0 32px;
         }
+        /* ── Section labels (Student / Course groupings) ─────── */
+        .section-label {
+            display: block;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--brand-gold);
+            font-weight: 700;
+            margin: 22px 0 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(212,167,44,.25);
+        }
         /* ── Revocation message ───────────────────────────────── */
         .revocation-notice {
             margin: 0 32px 28px;
@@ -277,6 +289,75 @@
                             <strong>{{ certificate.get_status_display|default:certificate.status }}</strong>
                         </td>
                     </tr>
+                </table>
+
+                {% if certificate.student_id %}
+                    <!-- ── Personal Details (QR scan — owner request) ─── -->
+                    <span class="section-label">Student Details</span>
+                    <table class="detail-table">
+                        <tr>
+                            <td class="detail-label">Student ID</td>
+                            <td class="detail-value">{{ certificate.student_id }}</td>
+                        </tr>
+                        {% if certificate.usn %}
+                            <tr>
+                                <td class="detail-label">USN</td>
+                                <td class="detail-value">{{ certificate.usn }}</td>
+                            </tr>
+                        {% endif %}
+                        <tr>
+                            <td class="detail-label">Email</td>
+                            <td class="detail-value">{{ certificate.email }}</td>
+                        </tr>
+                        {% if certificate.phone %}
+                            <tr>
+                                <td class="detail-label">Phone</td>
+                                <td class="detail-value">{{ certificate.phone }}</td>
+                            </tr>
+                        {% endif %}
+                        {% if certificate.degree %}
+                            <tr>
+                                <td class="detail-label">Degree</td>
+                                <td class="detail-value">{{ certificate.degree }}{% if certificate.semester %} — Semester {{ certificate.semester }}{% endif %}</td>
+                            </tr>
+                        {% endif %}
+                        {% if certificate.branch %}
+                            <tr>
+                                <td class="detail-label">Branch</td>
+                                <td class="detail-value">{{ certificate.branch }}</td>
+                            </tr>
+                        {% endif %}
+                    </table>
+
+                    <!-- ── Course Details (QR scan — owner request) ────── -->
+                    <span class="section-label">Course Details</span>
+                    <table class="detail-table">
+                        <tr>
+                            <td class="detail-label">Batch</td>
+                            <td class="detail-value">{{ certificate.batch }}</td>
+                        </tr>
+                        <tr>
+                            <td class="detail-label">Enrollment</td>
+                            <td class="detail-value">{{ certificate.enrollment_status }}</td>
+                        </tr>
+                        <tr>
+                            <td class="detail-label">Enrolled On</td>
+                            <td class="detail-value">{{ certificate.enrolled_on|date:"d MMMM Y" }}</td>
+                        </tr>
+                        {% if certificate.completed_on %}
+                            <tr>
+                                <td class="detail-label">Completed On</td>
+                                <td class="detail-value">{{ certificate.completed_on|date:"d MMMM Y" }}</td>
+                            </tr>
+                        {% endif %}
+                        <tr>
+                            <td class="detail-label">Attendance</td>
+                            <td class="detail-value">{{ certificate.attendance_percentage|floatformat:1 }}%</td>
+                        </tr>
+                    </table>
+                {% endif %}
+
+                <table class="detail-table" style="margin-top:18px;">
                     <tr>
                         <td class="detail-label">Message</td>
                         <td class="detail-value">{{ certificate.verification_message }}</td>

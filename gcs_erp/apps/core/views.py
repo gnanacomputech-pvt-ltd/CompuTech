@@ -243,7 +243,11 @@ class BatchViewSet(viewsets.ModelViewSet):
 
 
 class StudentViewSet(viewsets.ModelViewSet):
-    queryset = Student.objects.select_related('user', 'institution').all()
+    # prefetch_related('enrollments__…') powers the nested course details on
+    # StudentSerializer (personal + professional + course data in one payload).
+    queryset = Student.objects.select_related('user', 'institution').prefetch_related(
+        'enrollments__program', 'enrollments__batch', 'enrollments__academic_progress'
+    ).all()
     serializer_class = StudentSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter]

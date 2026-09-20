@@ -32,14 +32,11 @@ class PublicCertificateVerificationView(APIView):
     so it can never accidentally expose authenticated data.
     GET /api/v1/public/certificates/verify/:token
 
-    Returns only non-sensitive fields:
-    - certificate_number
-    - student_name
-    - program
-    - institution
-    - status
-    - issue_date
-    Never exposes phone, email, DOB, address, payment details, or government ID.
+    Per owner request, the payload carries the certificate holder's full
+    personal details (name, email, phone, student ID, USN, degree, semester,
+    branch) and course details (program, batch, enrollment status, dates,
+    attendance) so a QR scan confirms everything the certificate stands for.
+    Financial data (invoices, payments, fees) is never exposed.
     Revocation keeps the QR live but changes its resolved status to REVOKED (never a 404).
     """
     permission_classes = [permissions.AllowAny]
@@ -49,7 +46,9 @@ class PublicCertificateVerificationView(APIView):
         try:
             cert = Certificate.objects.select_related(
                 'enrollment__student__user',
+                'enrollment__student__institution',
                 'enrollment__program',
+                'enrollment__batch',
                 'enrollment__institution'
             ).get(token=token)
         except Certificate.DoesNotExist:
@@ -74,16 +73,37 @@ class PublicCertificateVerificationView(APIView):
         elif cert.status == 'DRAFT' or cert.status == 'ELIGIBLE':
             msg = "This certificate has not yet been issued."
 
+        enrollment = cert.enrollment
+        student = enrollment.student
+        try:
+            attendance_percentage = float(enrollment.academic_progress.attendance_percentage)
+        except Exception:
+            attendance_percentage = 0.0
+
         payload = {
             "certificate_number": cert.certificate_number,
-            "student_name": cert.enrollment.student.user.full_name,
-            "program": cert.enrollment.program.title,
-            "institution": cert.enrollment.institution.name,
+            "student_name": student.user.full_name,
+            "program": enrollment.program.title,
+            "institution": enrollment.institution.name,
             "status": cert.status,
             "issue_date": cert.issue_date,
             "is_valid": is_valid,
             "verification_message": msg,
-            "revocation_reason": revocation_reason
+            "revocation_reason": revocation_reason,
+            # ---- Personal details ----
+            "student_id": student.business_id,
+            "usn": student.usn or "",
+            "email": student.user.email,
+            "phone": student.user.phone or "",
+            "degree": student.degree or "",
+            "semester": student.semester or 0,
+            "branch": student.branch or "",
+            # ---- Course details ----
+            "batch": enrollment.batch.name,
+            "enrollment_status": enrollment.status,
+            "enrolled_on": enrollment.enrolled_at.date(),
+            "completed_on": enrollment.completed_at.date() if enrollment.completed_at else None,
+            "attendance_percentage": attendance_percentage,
         }
 
         serializer = PublicCertificateVerificationSerializer(payload)
@@ -97,7 +117,8 @@ class PublicCertificateWebVerificationView(APIView):
     rather than a JSON API. Mobile-responsive, theme-aware, branded for GCS.
     GET /verify/:token/
 
-    Returns only non-sensitive data (same sanitization as the JSON API).
+    Per owner request the page shows the holder's full personal and course
+    details (same fields as the JSON API). Financial data stays private.
     Public, unauthenticated, rate-limited via nginx.
     """
     permission_classes = [permissions.AllowAny]
@@ -110,14 +131,23 @@ class PublicCertificateWebVerificationView(APIView):
         try:
             cert = Certificate.objects.select_related(
                 'enrollment__student__user',
+                'enrollment__student__institution',
                 'enrollment__program',
+                'enrollment__batch',
                 'enrollment__institution'
             ).get(token=token)
+            enrollment = cert.enrollment
+            student = enrollment.student
+            try:
+                attendance_percentage = float(enrollment.academic_progress.attendance_percentage)
+            except Exception:
+                attendance_percentage = 0.0
+
             certificate_data = {
                 'certificate_number': cert.certificate_number,
-                'student_name': cert.enrollment.student.user.full_name,
-                'program': cert.enrollment.program.title,
-                'institution': cert.enrollment.institution.name,
+                'student_name': student.user.full_name,
+                'program': enrollment.program.title,
+                'institution': enrollment.institution.name,
                 'status': cert.status,
                 'issue_date': cert.issue_date,
                 'is_valid': (cert.status == 'ISSUED'),
@@ -129,6 +159,20 @@ class PublicCertificateWebVerificationView(APIView):
                 ),
                 'revocation_reason': cert.revocation_reason if cert.status == 'REVOKED' else '',
                 'verify_url': request.build_absolute_uri('/verify/'),
+                # ---- Personal details ----
+                'student_id': student.business_id,
+                'usn': student.usn or '',
+                'email': student.user.email,
+                'phone': student.user.phone or '',
+                'degree': student.degree or '',
+                'semester': student.semester or 0,
+                'branch': student.branch or '',
+                # ---- Course details ----
+                'batch': enrollment.batch.name,
+                'enrollment_status': enrollment.status,
+                'enrolled_on': enrollment.enrolled_at.date(),
+                'completed_on': enrollment.completed_at.date() if enrollment.completed_at else None,
+                'attendance_percentage': attendance_percentage,
             }
         except Certificate.DoesNotExist:
             not_found = True
