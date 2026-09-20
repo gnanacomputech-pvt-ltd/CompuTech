@@ -61,10 +61,10 @@ export const Home = () => {
               📅 Open for Registration
             </span>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#01083f]">
-              Upcoming Events & Workshops
+              Coming Soon Events & Workshops
             </h2>
             <p className="text-sm sm:text-base text-gray-600 mt-2">
-              Register now for our upcoming hands-on bootcamps, technical seminars, and college project guidance sessions.
+              Register now for our coming soon hands-on bootcamps, technical seminars, and college project guidance sessions.
             </p>
           </div>
 
@@ -86,45 +86,28 @@ export const Home = () => {
         </div>
       </section>
 
-      {/* 6. Services & Solutions */}
+      {/* 6. Comprehensive Technology Services */}
       <section className="py-20 bg-white border-b border-gray-200">
         <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
           <SectionTitle
             badge="Solutions & Offerings"
             title="Comprehensive Technology Services"
-            subtitle="Gnana Computech Solutions offers end-to-end software development, degree academic project guidance, and corporate skill training."
+            subtitle="Gnana Computech Solutions offers end-to-end software development, degree academic project guidance, corporate skill training, and industry-oriented courses."
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {servicesData.map((service) => (
               <ServiceCard key={service.id} service={service} />
             ))}
-          </div>
-
-          <div className="mt-12 text-center">
-            <Button to="/services" variant="primary" size="lg" icon={ArrowRight}>
-              Explore All Services
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* 7. Courses & Programs */}
-      <section className="py-20 bg-[#fbfbfd] border-b border-gray-200">
-        <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
-          <SectionTitle
-            badge="Featured Programs"
-            title="Industry-Oriented Courses"
-            subtitle="Practical software engineering courses designed for BCA, MCA, and Engineering students seeking high-growth tech careers."
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {coursesData.slice(0, 3).map((course) => (
               <CourseCard key={course.id} course={course} />
             ))}
           </div>
 
-          <div className="mt-12 text-center">
+          <div className="mt-12 flex flex-wrap justify-center gap-4 text-center">
+            <Button to="/services" variant="primary" size="lg" icon={ArrowRight}>
+              Explore All Services
+            </Button>
             <Button to="/courses" variant="charcoal" size="lg" icon={ArrowRight}>
               View All Courses & Tracks
             </Button>

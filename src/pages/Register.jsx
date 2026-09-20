@@ -232,7 +232,7 @@ export const Register = () => {
                     className="w-full px-4 py-2.5 rounded-xl border border-[#E8E1D2] bg-[#FAFAF7] text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A72C]"
                   >
                     <option value="Academic Project Guidance">BCA / MCA Final Year Project</option>
-                    <option value="Full Stack Web Development (MERN)">Full Stack Web Development (MERN)</option>
+                    <option value="Full Stack Web Development (JAVA/PYTHON)">Full Stack Web Development (JAVA/PYTHON)</option>
                     <option value="Python & Data Science Course">Python & Data Analytics</option>
                     <option value="Software Internship Track">IT / Software Internship (1 to 6 Months)</option>
                     <option value="Java Enterprise Track">Java Enterprise Engineering</option>

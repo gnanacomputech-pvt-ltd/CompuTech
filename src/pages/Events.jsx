@@ -17,7 +17,7 @@ export const Events = () => {
         <SectionTitle
           badge="GCS Event Horizon"
           title="Workshops, Seminars & Tech Bootcamps"
-          subtitle="Explore upcoming live events, college project orientation sessions, and past hackathons organized by Gnana Computech Solutions."
+          subtitle="Explore coming soon live events, college project orientation sessions, and past hackathons organized by Gnana Computech Solutions."
         />
 
         {/* Filter Buttons */}
@@ -41,7 +41,7 @@ export const Events = () => {
                 : 'bg-white text-[#252525] border border-[#E8E1D2]'
             }`}
           >
-            Upcoming Events ({eventsData.filter(e => e.status === 'upcoming').length})
+            Coming Soon Events ({eventsData.filter(e => e.status === 'upcoming').length})
           </button>
 
           <button

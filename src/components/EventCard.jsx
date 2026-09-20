@@ -25,7 +25,7 @@ export const EventCard = ({ event }) => {
               ? 'bg-[#D4A72C] text-[#17181A]' 
               : 'bg-gray-800 text-gray-300 border border-gray-700'
           }`}>
-            {event.status}
+            {isUpcoming ? 'Coming Soon' : event.status}
           </span>
           <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-black/60 backdrop-blur-md text-white border border-white/20">
             {event.category}

@@ -42,7 +42,7 @@ Extracted from the official GCS logo & corporate identity:
 - `/courses` - Courses & Programs Listing with category filters
 - `/courses/:id` - Detailed Course Pages with curriculum & registration links
 - `/internships` - Dedicated Internships Page with domain filters, stipend info, and eligibility
-- `/events` - Upcoming & Previous Workshops, Hackathons, and Seminars
+- `/events` - Coming Soon & Previous Workshops, Hackathons, and Seminars
 - `/events/:id` - Detailed Event Information & Schedule
 - `/blogs` - Tech Articles (Choosing BCA Projects, 2026 IT Skills, Importance of Internships)
 - `/blogs/:id` - Full Blog Article Reader
@@ -65,7 +65,7 @@ Extracted from the official GCS logo & corporate identity:
 - **Company Name:** Gnana Computech Solutions Private Limited
 - **CIN:** U85500KA2025PTC205651
 - **Registered Address:** 2nd Floor, No. 126, 9th A Cross, 3rd Main, Vigneswara Nagar, Sunkadakatte, Viswaneedam Post, Bangalore North, Karnataka, India - 560091
-- **Accreditation:** MSME Registered Unit | Registered Private Limited Company
+- **Accreditation:** DPIIT Recognized | Registered Private Limited Company
 - **Phone:** +91 98765 43210 / +91 80 2345 6789
 - **Email:** info@gnanacomputech.com
 

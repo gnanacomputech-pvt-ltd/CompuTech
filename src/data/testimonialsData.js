@@ -6,7 +6,7 @@ export const testimonialsData = [
     college: 'Sunkadakatte Degree College, Bangalore',
     rating: 5,
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-    testimonial: 'Gnana Computech Solutions helped me build my final year BCA project on MERN stack with complete documentation. The mentors explained every single line of code so well that I answered all viva questions with complete confidence!'
+    testimonial: 'Gnana Computech Solutions helped me build my final year BCA project on Java Full Stack with complete documentation. The mentors explained every single line of code so well that I answered all viva questions with complete confidence!'
   },
   {
     id: 't-2',

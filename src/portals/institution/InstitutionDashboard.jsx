@@ -125,7 +125,7 @@ export const InstitutionDashboard = () => {
             className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-red-950/60 border border-red-800 text-red-300 hover:bg-red-900 text-xs font-bold transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
-            <span>Logout Portal</span>
+            <span>Logout</span>
           </button>
         </div>
       </aside>
@@ -181,7 +181,7 @@ export const InstitutionDashboard = () => {
                   <Layers className="w-5 h-5 text-[#D4A72C] flex-shrink-0" />
                 </div>
                 <h3 className="text-2xl font-extrabold text-[#222326]">{statsLoading ? '—' : collegeProfile.activeBatches}</h3>
-                <p className="text-xs text-gray-500 mt-1">Currently running</p>
+                <p className="text-xs text-gray-500 mt-1">Java & Python Track</p>
               </div>
 
               <div className="bg-white p-6 rounded-2xl border border-[#E8E1D2] shadow-sm">
@@ -264,7 +264,7 @@ export const InstitutionDashboard = () => {
                 <div className="p-4 rounded-xl bg-[#FAFAF7] border border-[#E8E1D2] flex flex-col sm:flex-row justify-between gap-3">
                   <div>
                     <span className="px-2 py-0.5 rounded bg-[#D4A72C] text-[#17181A] font-bold text-[10px] uppercase">Academic Degree Track</span>
-                    <h4 className="font-bold text-[#222326] text-sm mt-1">BCA Final Year Academic Project & MERN Stack</h4>
+                    <h4 className="font-bold text-[#222326] text-sm mt-1">BCA Final Year Academic Project & Java Stack</h4>
                     <p className="text-gray-500 mt-0.5">SRS Documentation, IEEE standard coding, database schema & mock viva voce.</p>
                   </div>
                   <span className="self-start sm:self-center px-3 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold whitespace-nowrap">45 Enrolled</span>
@@ -320,7 +320,7 @@ export const InstitutionDashboard = () => {
                 <div className="p-3.5 rounded-xl bg-[#FAFAF7] border border-[#E8E1D2] flex justify-between items-center">
                   <div>
                     <span className="font-bold text-[#222326]">Prajwal Gowda (GCS-2026-BCA04)</span>
-                    <span className="text-gray-500 block text-[11px]">Registered: Jan 15, 2026 • Program: BCA Project & MERN</span>
+                    <span className="text-gray-500 block text-[11px]">Registered: Jan 15, 2026 • Program: BCA Project & Java</span>
                   </div>
                   <span className="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 font-bold">Confirmed</span>
                 </div>

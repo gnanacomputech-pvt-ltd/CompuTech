@@ -1,18 +1,18 @@
 export const coursesData = [
   {
     id: 'fullstack-web-dev',
-    title: 'Full Stack Web Development (MERN/Python)',
+    title: 'Full Stack Web Development (JAVA/PYTHON)',
     category: 'Software Engineering',
     duration: '3 Months / 6 Months',
     level: 'Beginner to Advanced',
     mode: 'Classroom & Online',
-    shortDesc: 'Master modern frontend and backend web development using React, Node.js, Express, Python, and SQL/NoSQL databases.',
+    shortDesc: 'Master modern frontend and backend web development using Java, Python, Spring Boot, React, and SQL databases.',
     fullDesc: 'Comprehensive training program designed for students wanting to become full-stack software engineers. Build 4+ real-world web applications, learn REST API design, state management, version control, and cloud deployment.',
     topics: [
       'HTML5, CSS3, JavaScript (ES6+), React.js',
       'Tailwind CSS & Responsive Web Design',
-      'Node.js, Express.js & Python Django Basics',
-      'Database Architecture (MySQL & MongoDB)',
+      'Core Java, Spring Boot & Python Backend APIs',
+      'Database Architecture (MySQL & PostgreSQL)',
       'Git, GitHub Collaboration & Netlify/Vercel Deployment',
       'Final Industry Capstone Project'
     ],

@@ -10,7 +10,7 @@ export const NoticeTicker = () => {
       </div>
       <div className="overflow-hidden whitespace-nowrap w-full">
         <span className="site-scroll-text">
-          🚀 Admissions & Project Batches Open for 2026! Hands-on BCA/MCA Academic Projects, Full Stack MERN/Python Internships & Campus Technical Workshops — Register at Gnana Computech Solutions, Sunkadakatte, Bangalore!
+          🚀 Admissions & Project Batches Open for 2026! Hands-on BCA/MCA Academic Projects, Full Stack JAVA/PYTHON Internships & Campus Technical Workshops — Register at Gnana Computech Solutions, Sunkadakatte, Bangalore!
         </span>
       </div>
     </div>

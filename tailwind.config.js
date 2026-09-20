@@ -22,6 +22,8 @@ export default {
       },
       fontFamily: {
         sans: ['Verdana', 'Geneva', 'Tahoma', 'sans-serif'],
+        mono: ['Verdana', 'Geneva', 'Tahoma', 'sans-serif'],
+        serif: ['Verdana', 'Geneva', 'Tahoma', 'sans-serif'],
       }
     },
   },

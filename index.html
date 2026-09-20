@@ -6,12 +6,45 @@
     <title>Gnana Computech Solutions Private Limited | Tech Training, Projects & Software Solutions</title>
     <meta name="description" content="Gnana Computech Solutions Private Limited - Leading software development, BCA & MCA academic projects, degree student internships, IT training and placement support in Sunkadakatte, Bangalore." />
     
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
+    <!-- Tailwind Play CDN for fallback & immediate preview execution -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              gcs: {
+                gold: '#D4A72C',
+                'gold-dark': '#B88918',
+                'gold-light': '#F5E6B8',
+                charcoal: '#222326',
+                'charcoal-dark': '#17181A',
+                'charcoal-light': '#32343A',
+                bg: '#FAFAF7',
+                border: '#E8E1D2',
+                text: '#252525',
+                muted: '#6B6B6B',
+              }
+            },
+            fontFamily: {
+              sans: ['Verdana', 'Geneva', 'Tahoma', 'sans-serif'],
+              mono: ['Verdana', 'Geneva', 'Tahoma', 'sans-serif'],
+              serif: ['Verdana', 'Geneva', 'Tahoma', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    
     <style>
+      *, *::before, *::after, html, body, button, input, select, textarea, h1, h2, h3, h4, h5, h6, p, span, a, div, li, ul, ol, label, td, th, code, pre, small, strong, b, em, i {
+        font-family: Verdana, Geneva, Tahoma, sans-serif !important;
+      }
+      body {
+        background-color: #FAFAF7;
+        color: #252525;
+        overflow-x: hidden;
+      }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
         width: 8px;

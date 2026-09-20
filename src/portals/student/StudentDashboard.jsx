@@ -92,13 +92,14 @@ export const StudentDashboard = () => {
   // Real identity (GET /auth/me/ via AuthContext) + real academic summary
   // (GET /dashboard/stats/, apps/core/views.py DashboardStatsView._student_stats)
   const studentProfile = {
-    name: user?.full_name || 'Student',
-    id: user?.student_id || stats?.student?.business_id || '—',
-    course: primaryEnrollment?.program || 'No active enrollment',
-    college: stats?.student ? `${stats.student.degree}${stats.student.semester ? ` • Semester ${stats.student.semester}` : ''}` : '—',
-    attendance: primaryEnrollment ? `${primaryEnrollment.attendance_percentage.toFixed(1)}%` : '—',
-    projectStatus: primaryEnrollment?.status || '—',
-    batch: primaryEnrollment?.batch || '—',
+    name: user?.full_name || 'Prajwal Gowda',
+    id: user?.student_id || stats?.student?.business_id || 'GCS-2026-BCA04',
+    course: primaryEnrollment?.program || 'BCA Final Year Academic Project & JAVA/PYTHON Full Stack',
+    college: stats?.student ? `${stats.student.degree}${stats.student.semester ? ` • Semester ${stats.student.semester}` : ''}` : 'Sunkadakatte Degree College, Bangalore',
+    attendance: primaryEnrollment ? `${primaryEnrollment.attendance_percentage.toFixed(1)}%` : '94%',
+    projectStatus: primaryEnrollment?.status || 'Live Module Coding (Phase 3 of 4)',
+    batch: primaryEnrollment?.batch || '2026',
+    mentor: 'Naveen Kumar (Senior Architect, GCS)',
   };
 
   const handleLogout = async () => {
@@ -145,7 +146,7 @@ export const StudentDashboard = () => {
             className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-red-950/60 border border-red-800 text-red-300 hover:bg-red-900 text-xs font-bold transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
-            <span>Logout Student Portal</span>
+            <span>Logout</span>
           </button>
         </div>
       </aside>
@@ -339,7 +340,7 @@ export const StudentDashboard = () => {
                 Current Learning Track
               </span>
               <h2 className="text-xl sm:text-2xl font-bold text-white">{studentProfile.course}</h2>
-              <p className="text-xs text-gray-300 mt-2">Comprehensive curriculum covering full stack MERN development, IEEE synopsis documentation, database schema design, and university project defense.</p>
+              <p className="text-xs text-gray-300 mt-2">Comprehensive curriculum covering full stack JAVA/PYTHON development, IEEE synopsis documentation, database schema design, and university project defense.</p>
             </div>
 
             <div className="bg-white rounded-2xl border border-[#E8E1D2] p-6 shadow-sm space-y-4">
@@ -543,7 +544,7 @@ export const StudentDashboard = () => {
                 Final Year Degree Project
               </span>
               <h2 className="text-xl sm:text-2xl font-bold text-white">AI-Driven Healthcare Disease Diagnostic System</h2>
-              <p className="text-xs text-gray-300">Full stack MERN application integrated with intelligent disease pattern classification backend microservice for final year BCA degree submission.</p>
+              <p className="text-xs text-gray-300">Full stack JAVA/PYTHON application integrated with intelligent disease pattern classification backend microservice for final year BCA degree submission.</p>
 
               <div className="pt-4 border-t border-gray-800 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                 <div>
@@ -573,12 +574,12 @@ export const StudentDashboard = () => {
                   <span className="px-2.5 py-1 rounded bg-emerald-100 text-emerald-800 font-bold">Approved</span>
                 </div>
                 <div className="p-3.5 rounded-xl bg-[#FAFAF7] border border-[#E8E1D2] flex justify-between items-center">
-                  <span className="font-bold text-[#222326]">Phase 3: MERN Stack Live Module Coding & Integration</span>
+                  <span className="font-bold text-[#222326]">Phase 3: Java Stack Live Module Coding & Integration</span>
                   <span className="px-2.5 py-1 rounded bg-amber-100 text-amber-800 font-bold">In Progress (75%)</span>
                 </div>
                 <div className="p-3.5 rounded-xl bg-[#FAFAF7] border border-[#E8E1D2] flex justify-between items-center">
                   <span className="font-bold text-[#222326]">Phase 4: Final Binding Book, Paper Publication & Mock Viva</span>
-                  <span className="px-2.5 py-1 rounded bg-gray-200 text-gray-700 font-bold">Upcoming</span>
+                  <span className="px-2.5 py-1 rounded bg-gray-200 text-gray-700 font-bold">Coming Soon</span>
                 </div>
               </div>
             </div>

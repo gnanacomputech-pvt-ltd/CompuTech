@@ -148,7 +148,7 @@ export const FloatingWidgets = () => {
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-xl bg-indigo-50 text-indigo-900 hover:bg-indigo-100 transition-colors text-left"
               >
                 <Calendar className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                <span>Upcoming Workshops & Events</span>
+                <span>Coming Soon Workshops & Events</span>
               </button>
 
               <button

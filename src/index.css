@@ -2,15 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  html, body {
-    font-family: Verdana, Geneva, Tahoma, sans-serif;
-    @apply bg-gcs-bg text-gcs-text font-sans antialiased;
-  }
+/* Universal font enforcement for all website text */
+*, *::before, *::after, html, body, button, input, select, textarea, h1, h2, h3, h4, h5, h6, p, span, a, div, li, ul, ol, label, td, th, code, pre, small, strong, b, em, i {
+  font-family: Verdana, Geneva, Tahoma, sans-serif !important;
+}
 
-  *, *::before, *::after {
-    font-family: Verdana, Geneva, Tahoma, sans-serif;
-  }
+body {
+  font-family: Verdana, Geneva, Tahoma, sans-serif !important;
+  background-color: #FAFAF7;
+  color: #252525;
 }
 
 @layer utilities {

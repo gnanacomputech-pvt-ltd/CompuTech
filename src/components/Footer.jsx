@@ -22,7 +22,7 @@ export const Footer = () => {
                 <Award className="w-3.5 h-3.5" /> DPIIT Recognized
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-xs font-semibold text-white">
-                <Shield className="w-3.5 h-3.5 text-[#ffcc00]" /> MSME Unit
+                <Shield className="w-3.5 h-3.5 text-[#ffcc00]" /> MCA Incorporated
               </span>
             </div>
           </div>
@@ -111,7 +111,7 @@ export const Footer = () => {
               </li>
               <li>
                 <Link to="/courses/fullstack-web-dev" className="text-[#b7c0e6] hover:text-[#ffcc00] transition-colors flex items-center gap-1.5">
-                  <span>›</span> Full Stack Python & React
+                  <span>›</span> Full Stack Java/Python & React
                 </Link>
               </li>
             </ul>

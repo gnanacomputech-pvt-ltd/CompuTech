@@ -25,7 +25,7 @@ export const partnersData = [
     name: 'Soundarya Institute of Management & Science',
     type: 'Workshop Partner',
     location: 'Soundarya Layout, Bangalore',
-    description: 'Hands-on Web Technologies workshops, MERN stack training sessions, and internship orientation drives.',
+    description: 'Hands-on Web Technologies workshops, Java Full Stack training sessions, and internship orientation drives.',
     studentsImpacted: '950+ Students',
     tag: 'BCA / B.Com CS'
   },
@@ -111,13 +111,6 @@ export const recognitionsData = [
     badge: 'Govt. of India Recognized',
     icon: '🇮🇳',
     image: dpiitLogo
-  },
-  {
-    title: 'MSME Registered Unit',
-    subtitle: 'Govt. of India Enterprise',
-    description: 'Officially recognized Micro, Small & Medium Enterprise dedicated to technological innovation and skill advancement.',
-    badge: 'MSME Approved',
-    icon: '🏢'
   },
   {
     title: 'Ministry of Corporate Affairs (MCA)',

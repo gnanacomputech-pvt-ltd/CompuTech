@@ -29,7 +29,7 @@ export const servicesData = [
       'Expert Corporate Trainers & Dedicated Mentors',
       'Attendance Tracking, Assessments & College Reports'
     ],
-    technologies: ['Full Stack MERN', 'Python & Data Analytics', 'AI & Machine Learning', 'Cloud Computing', 'Cyber Security', 'Java Full Stack']
+    technologies: ['Full Stack Java', 'Python & Data Analytics', 'AI & Machine Learning', 'Cloud Computing', 'Cyber Security', 'Spring Boot & Microservices']
   },
   {
     id: 'industry-training',
@@ -40,7 +40,7 @@ export const servicesData = [
     features: [
       'Project-Based Learning Methodology',
       'Real-Time Coding Assignments & Code Reviews',
-      'Modern Tech Stacks (MERN, Python, Java)',
+      'Modern Tech Stacks (Java, Python, React)',
       'Git, GitHub, & CI/CD Industry Workflows',
       'Small Batch Sizes for Individual Attention',
       'Industry-Recognized Certification'

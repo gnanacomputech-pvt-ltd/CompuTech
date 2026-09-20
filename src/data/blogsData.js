@@ -36,8 +36,8 @@ export const blogsData = [
     content: `
       The IT landscape in Bangalore and globally is evolving rapidly. Employers are prioritizing practical problem-solving capabilities over pure theoretical scores.
 
-      ### 1. Full Stack Web Development (MERN & Python)
-      Companies prefer developers who understand both client-side user interfaces and server-side databases. Proficiency in JavaScript/TypeScript, React.js, Node.js, and SQL is currently the most requested combination.
+      ### 1. Full Stack Web Development (JAVA & PYTHON)
+      Companies prefer developers who understand both client-side user interfaces and server-side databases. Proficiency in Java (Spring Boot), Python (Django/FastAPI), React.js, and SQL is currently the most requested combination.
 
       ### 2. Applied Data Analytics & AI Integration
       Understanding Python, Pandas, SQL querying, and how to integrate Generative AI APIs into standard business applications is becoming standard across tech teams.

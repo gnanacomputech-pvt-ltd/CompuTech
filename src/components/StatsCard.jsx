@@ -14,7 +14,7 @@ export const StatsCard = () => {
     {
       number: '5,000+',
       label: 'Projects & Faculties Trained',
-      sub: 'IEEE, MERN, Python & Live Deployments',
+      sub: 'IEEE, Java, Python & Live Deployments',
       icon: GraduationCap,
       color: 'text-teal-600',
       bg: 'bg-teal-50'

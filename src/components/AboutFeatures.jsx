@@ -65,7 +65,7 @@ export const AboutFeatures = () => {
             At <strong>Gnana Computech Solutions Private Limited</strong>, based in Sunkadakatte, Bangalore, we believe that the best way to master modern technology is by <strong>doing</strong>. Our programs are designed to ensure students don't just understand theoretical concepts, but build and deploy complete real-world software applications.
           </p>
           <p className="mb-0 text-gray-600">
-            We deliver specialized degree academic projects (BCA/MCA/B.Tech), industrial training, and software internships in Python, MERN Stack, AI/ML, and Cloud — all through a <strong>project-first methodology</strong>.
+            We deliver specialized degree academic projects (BCA/MCA/B.Tech), industrial training, and software internships in Python, Java Full Stack, AI/ML, and Cloud — all through a <strong>project-first methodology</strong>.
           </p>
         </div>
 
