@@ -1,19 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { 
-  LayoutDashboard, Users, Building2, UserCheck, BookOpen, Layers, UserPlus, 
-  CheckSquare, FileSpreadsheet, FolderGit2, GraduationCap, DollarSign, Award, 
+import {
+  LayoutDashboard, Users, Building2, UserCheck, BookOpen, Layers, UserPlus,
+  CheckSquare, FileSpreadsheet, FolderGit2, GraduationCap, DollarSign, Award,
   Settings, LogOut, Bell, Search, TrendingUp, Calendar, AlertCircle, ChevronRight,
-  Plus, Trash2, Edit, Check, X, Download, Filter, Eye, Phone, Mail, MapPin, 
+  Plus, Trash2, Edit, Check, X, Download, Filter, Eye, Phone, Mail, MapPin,
   Sparkles, Printer, FileText, CheckCircle2, Clock, ShieldCheck, RefreshCw,
   Image, Upload
 } from 'lucide-react';
 import { Logo } from '../../components/Logo';
 import { galleryData } from '../../data/galleryData';
+import { useAuth } from '../../lib/auth/AuthContext';
+import { students as studentsApi } from '../../lib/api/core';
+import { fetchDashboardStats } from '../../lib/api/dashboard';
+import { ApiError } from '../../lib/api/client';
 
 export const ErpDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [toast, setToast] = useState(null);
 
@@ -92,16 +97,48 @@ export const ErpDashboard = () => {
   };
 
   // ----------------------------------------------------
-  // 1. STATE: STUDENTS
+  // 1. STATE: STUDENTS — real data from GET /api/v1/students/
+  // (apps/core/views.py StudentViewSet). The backend already scopes this
+  // per-role: ERP staff see everyone, so no client-side filtering needed.
+  // page_size=100 keeps this a single request at GCS's actual scale
+  // (spec target: <1 lakh users total, not per-institution) instead of
+  // building full pagination controls for a first pass.
   // ----------------------------------------------------
-  const [students, setStudents] = useState([
-    { id: 'GCS-2026-001', name: 'Prajwal Gowda', college: 'Sunkadakatte Degree College', course: 'BCA Final Year Project', batch: 'BCA-2026-B1', fee: 'Paid', status: 'Active', phone: '9845012345', email: 'prajwal.g@gmail.com', progress: 85 },
-    { id: 'GCS-2026-002', name: 'Kavya R.', college: 'Acharya Group of Institutions', course: 'Full Stack Web Dev (MERN)', batch: 'MERN-2026-A', fee: 'Paid', status: 'Active', phone: '9845012346', email: 'kavya.r@gmail.com', progress: 70 },
-    { id: 'GCS-2026-003', name: 'Sharath Kumar', college: 'Soundarya Institute of Mgmt', course: 'Python & AI Track', batch: 'PY-2026-C', fee: 'Paid', status: 'Completed', phone: '9845012347', email: 'sharath.k@gmail.com', progress: 100 },
-    { id: 'GCS-2026-004', name: 'Nithin V.', college: 'GFGC Peenya', course: 'MCA Academic Project', batch: 'MCA-2026-B', fee: 'Pending', status: 'Active', phone: '9845012348', email: 'nithin.v@gmail.com', progress: 45 },
-    { id: 'GCS-2026-005', name: 'Divya Shree', college: 'East West Inst. of Tech (EWIT)', course: 'Java Spring Boot Full Stack', batch: 'JAVA-2026-D', fee: 'Paid', status: 'Active', phone: '9845012349', email: 'divya.s@gmail.com', progress: 60 },
-    { id: 'GCS-2026-006', name: 'Manoj Kumar', college: 'Peenya Govt Tech Institute', course: 'Cloud & DevOps Engineering', batch: 'MERN-2026-A', fee: 'Pending', status: 'Active', phone: '9845012350', email: 'manoj.k@gmail.com', progress: 30 }
-  ]);
+  const [students, setStudents] = useState([]);
+  const [studentsTotal, setStudentsTotal] = useState(0);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [studentsError, setStudentsError] = useState('');
+
+  const loadStudents = useCallback(async () => {
+    setStudentsLoading(true);
+    setStudentsError('');
+    try {
+      const data = await studentsApi.list({ page_size: 100 });
+      setStudents(data.results);
+      setStudentsTotal(data.count);
+    } catch (err) {
+      setStudentsError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not load students.');
+    } finally {
+      setStudentsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadStudents(); }, [loadStudents]);
+
+  // ----------------------------------------------------
+  // Aggregate dashboard stats — GET /api/v1/dashboard/stats/
+  // (apps/core/views.py DashboardStatsView._erp_stats)
+  // ----------------------------------------------------
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [dashboardStatsError, setDashboardStatsError] = useState('');
+
+  useEffect(() => {
+    fetchDashboardStats()
+      .then(setDashboardStats)
+      .catch((err) => setDashboardStatsError(
+        err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not load dashboard stats.'
+      ));
+  }, []);
 
   // ----------------------------------------------------
   // 2. STATE: INSTITUTIONS
@@ -315,32 +352,26 @@ export const ErpDashboard = () => {
   // ----------------------------------------------------
   const handleAddStudent = (e) => {
     e.preventDefault();
-    if (!newStudent.name || !newStudent.phone) {
-      showToast('Please provide student name and contact number', 'error');
-      return;
-    }
-    const id = `GCS-2026-${String(students.length + 1).padStart(3, '0')}`;
-    const entry = { ...newStudent, id, status: 'Active', progress: 10 };
-    setStudents([entry, ...students]);
+    // Creating a Student record requires a linked User account, institution,
+    // program and batch (apps/core/serializers.py StudentSerializer) — there's
+    // no single "quick add" endpoint yet for staff to spin one up by hand.
+    // Real admission currently goes through /signup (self-registration) or
+    // the bulk CSV import Celery task (Section 7 of the spec); this modal
+    // stays as a UI placeholder until a dedicated admissions endpoint exists.
+    showToast('Student enrollment requires the admissions workflow — ask students to self-register at /signup, or use bulk import once available.', 'error');
     setIsEnrollModalOpen(false);
-    setNewStudent({ name: '', college: '', course: 'BCA Final Year Project', batch: 'BCA-2026-B1', phone: '', email: '', fee: 'Paid' });
-    showToast(`Student ${entry.name} enrolled successfully with ID: ${id}`);
   };
 
-  const handleDeleteStudent = (id) => {
-    setStudents(students.filter(s => s.id !== id));
-    showToast('Student record removed from ERP');
-  };
-
-  const toggleStudentFee = (id) => {
-    setStudents(students.map(s => {
-      if (s.id === id) {
-        const nextFee = s.fee === 'Paid' ? 'Pending' : 'Paid';
-        return { ...s, fee: nextFee };
-      }
-      return s;
-    }));
-    showToast('Student fee status updated');
+  const handleDeleteStudent = async (id) => {
+    if (!window.confirm('Remove this student record? This cannot be undone.')) return;
+    try {
+      await studentsApi.remove(id);
+      setStudents((prev) => prev.filter((s) => s.id !== id));
+      setStudentsTotal((prev) => Math.max(0, prev - 1));
+      showToast('Student record removed');
+    } catch (err) {
+      showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not remove this student.', 'error');
+    }
   };
 
   const handleRecordFee = (e) => {
@@ -356,8 +387,6 @@ export const ErpDashboard = () => {
       status: 'Success'
     };
     setTransactions([tx, ...transactions]);
-    // update student fee status
-    setStudents(students.map(s => s.name === newFee.student ? { ...s, fee: 'Paid' } : s));
     setIsFeeModalOpen(false);
     showToast(`Payment recorded! Receipt #${receiptNo} generated`);
   };
@@ -436,7 +465,7 @@ export const ErpDashboard = () => {
 
   const sidebarItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
-    { name: 'Students', icon: Users, count: students.length },
+    { name: 'Students', icon: Users, count: studentsTotal },
     { name: 'Institutions', icon: Building2, count: institutions.length },
     { name: 'Employees', icon: UserCheck, count: employees.length },
     { name: 'Programs', icon: BookOpen, count: programs.length },
@@ -466,16 +495,17 @@ export const ErpDashboard = () => {
     setSearchTerm('');
   };
 
-  // Search filter helper
+  // Search filter helper — fields match the real Student model
+  // (business_id, user_details.full_name/email, institution_name, degree, usn)
   const filteredStudents = useMemo(() => {
     if (!searchTerm) return students;
     const term = searchTerm.toLowerCase();
-    return students.filter(s => 
-      s.name.toLowerCase().includes(term) || 
-      s.id.toLowerCase().includes(term) || 
-      s.course.toLowerCase().includes(term) ||
-      s.college.toLowerCase().includes(term) ||
-      s.batch.toLowerCase().includes(term)
+    return students.filter(s =>
+      (s.user_details?.full_name || '').toLowerCase().includes(term) ||
+      (s.business_id || '').toLowerCase().includes(term) ||
+      (s.usn || '').toLowerCase().includes(term) ||
+      (s.institution_name || '').toLowerCase().includes(term) ||
+      (s.degree || '').toLowerCase().includes(term)
     );
   }, [students, searchTerm]);
 
@@ -530,13 +560,13 @@ export const ErpDashboard = () => {
         <div className="pt-4 border-t border-gray-800 space-y-2 mt-4 lg:mt-0">
           <div className="px-3 py-2 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-between">
             <div className="text-xs min-w-0">
-              <p className="font-bold text-white truncate">GCS Admin Office</p>
-              <p className="text-[10px] text-[#D4A72C] truncate">Sunkadakatte HQ (Active)</p>
+              <p className="font-bold text-white truncate">{user?.full_name || 'GCS Staff'}</p>
+              <p className="text-[10px] text-[#D4A72C] truncate">{(user?.roles || []).join(', ') || 'ERP Staff'}</p>
             </div>
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
           </div>
           <button
-            onClick={() => navigate('/login')}
+            onClick={async () => { await logout(); navigate('/login'); }}
             className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-xl bg-red-950/60 border border-red-800 text-red-300 hover:bg-red-900 text-xs font-bold transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
@@ -582,6 +612,11 @@ export const ErpDashboard = () => {
         {/* ---------------------------------------------------- */}
         {activeTab === 'Dashboard' && (
           <div className="space-y-8">
+            {dashboardStatsError && (
+              <div className="px-4 py-3 rounded-xl bg-red-950/40 border border-red-800 text-red-300 text-xs font-semibold">
+                {dashboardStatsError}
+              </div>
+            )}
             {/* 4 Quick Stat Counters */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="p-5 rounded-2xl bg-[#222326] border border-gray-800 hover:border-[#D4A72C]/40 transition-colors">
@@ -589,19 +624,26 @@ export const ErpDashboard = () => {
                   <span>Enrolled Students</span>
                   <Users className="w-4 h-4 text-[#D4A72C]" />
                 </div>
-                <h3 className="text-2xl font-extrabold text-white">{students.length} Active</h3>
+                <h3 className="text-2xl font-extrabold text-white">
+                  {dashboardStats ? dashboardStats.students.active : '—'} Active
+                </h3>
                 <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3" /> +14% this batch (Sunkadakatte)
+                  <TrendingUp className="w-3 h-3" />
+                  {dashboardStats ? `${dashboardStats.students.total} total on record` : 'Loading…'}
                 </p>
               </div>
 
               <div className="p-5 rounded-2xl bg-[#222326] border border-gray-800 hover:border-[#D4A72C]/40 transition-colors">
                 <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
-                  <span>Active Projects</span>
+                  <span>Active Enrollments</span>
                   <FolderGit2 className="w-4 h-4 text-[#D4A72C]" />
                 </div>
-                <h3 className="text-2xl font-extrabold text-white">{projects.length} Guides</h3>
-                <p className="text-[11px] text-[#D4A72C] mt-1">BCA & MCA Degree Tracks</p>
+                <h3 className="text-2xl font-extrabold text-white">
+                  {dashboardStats ? dashboardStats.enrollments.active : '—'} Active
+                </h3>
+                <p className="text-[11px] text-[#D4A72C] mt-1">
+                  {dashboardStats ? `${dashboardStats.enrollments.applied_pending} pending applications` : 'Loading…'}
+                </p>
               </div>
 
               <div className="p-5 rounded-2xl bg-[#222326] border border-gray-800 hover:border-[#D4A72C]/40 transition-colors">
@@ -609,7 +651,8 @@ export const ErpDashboard = () => {
                   <span>Partner Institutions</span>
                   <Building2 className="w-4 h-4 text-[#D4A72C]" />
                 </div>
-                <h3 className="text-2xl font-extrabold text-white">{institutions.length} Colleges</h3>
+                <h3 className="text-2xl font-extrabold text-white">
+                  {dashboardStats ? dashboardStats.institutions.total : institutions.length} Colleges</h3>
                 <p className="text-[11px] text-gray-400 mt-1">Bangalore North Network</p>
               </div>
 
@@ -618,7 +661,9 @@ export const ErpDashboard = () => {
                   <span>Certificates Issued</span>
                   <Award className="w-4 h-4 text-[#D4A72C]" />
                 </div>
-                <h3 className="text-2xl font-extrabold text-white">{certificates.length} Issued</h3>
+                <h3 className="text-2xl font-extrabold text-white">
+                  {dashboardStats ? dashboardStats.certificates.issued : certificates.length} Issued
+                </h3>
                 <p className="text-[11px] text-emerald-400 mt-1">QR Code Verifiable</p>
               </div>
             </div>
@@ -680,51 +725,52 @@ export const ErpDashboard = () => {
             <div className="bg-[#222326] rounded-2xl border border-gray-800 p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                 <div>
-                  <h3 className="text-base font-bold text-white">Recent Student Admissions & Fee Status</h3>
-                  <p className="text-xs text-gray-400">Live synchronization with Sunkadakatte Central Server</p>
+                  <h3 className="text-base font-bold text-white">Recently Added Students</h3>
+                  <p className="text-xs text-gray-400">Live from GET /api/v1/students/</p>
                 </div>
                 <button
-                  onClick={() => setActiveTab('Students')}
+                  onClick={() => handleTabClick('Students')}
                   className="text-xs text-[#D4A72C] hover:underline font-bold flex items-center gap-1 self-start sm:self-auto cursor-pointer"
                 >
-                  <span>View All Students ({students.length})</span>
+                  <span>View All Students ({studentsTotal})</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
 
+              {studentsLoading ? (
+                <p className="text-xs text-gray-400 py-6 text-center">Loading students…</p>
+              ) : studentsError ? (
+                <p className="text-xs text-red-400 py-6 text-center">{studentsError}</p>
+              ) : students.length === 0 ? (
+                <p className="text-xs text-gray-400 py-6 text-center">No students enrolled yet.</p>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-gray-300">
                   <thead className="bg-gray-900 text-gray-400 uppercase font-bold border-b border-gray-800">
                     <tr>
                       <th className="p-3">Student ID</th>
                       <th className="p-3">Name</th>
-                      <th className="p-3">College</th>
-                      <th className="p-3">Program</th>
-                      <th className="p-3">Batch</th>
-                      <th className="p-3">Fee Status</th>
+                      <th className="p-3">Institution</th>
+                      <th className="p-3">Degree</th>
+                      <th className="p-3">Status</th>
                       <th className="p-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
                     {filteredStudents.slice(0, 5).map((std) => (
                       <tr key={std.id} className="hover:bg-gray-800/50 transition-colors">
-                        <td className="p-3 font-mono font-bold text-[#D4A72C]">{std.id}</td>
-                        <td className="p-3 font-bold text-white">{std.name}</td>
-                        <td className="p-3 text-gray-400">{std.college}</td>
-                        <td className="p-3">{std.course}</td>
-                        <td className="p-3 font-mono text-gray-300">{std.batch}</td>
+                        <td className="p-3 font-mono font-bold text-[#D4A72C]">{std.business_id}</td>
+                        <td className="p-3 font-bold text-white">{std.user_details?.full_name}</td>
+                        <td className="p-3 text-gray-400">{std.institution_name}</td>
+                        <td className="p-3">{std.degree}{std.semester ? ` • Sem ${std.semester}` : ''}</td>
                         <td className="p-3">
-                          <button
-                            onClick={() => toggleStudentFee(std.id)}
-                            className={`px-2.5 py-1 rounded text-[10px] font-bold border cursor-pointer ${
-                              std.fee === 'Paid' 
-                                ? 'bg-emerald-950 text-emerald-400 border-emerald-800 hover:bg-emerald-900' 
-                                : 'bg-amber-950 text-amber-400 border-amber-800 hover:bg-amber-900'
-                            }`}
-                            title="Click to toggle fee status"
-                          >
-                            {std.fee} ⟳
-                          </button>
+                          <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${
+                            std.is_active
+                              ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                              : 'bg-gray-800 text-gray-400 border-gray-700'
+                          }`}>
+                            {std.is_active ? 'Active' : 'Inactive'}
+                          </span>
                         </td>
                         <td className="p-3">
                           <button
@@ -740,6 +786,7 @@ export const ErpDashboard = () => {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           </div>
         )}
@@ -751,13 +798,19 @@ export const ErpDashboard = () => {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#222326] p-4 rounded-2xl border border-gray-800">
               <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-gray-300">Total: {filteredStudents.length} Students</span>
-                <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 text-[10px] font-bold border border-emerald-800">
-                  Paid: {students.filter(s => s.fee === 'Paid').length}
-                </span>
-                <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-400 text-[10px] font-bold border border-amber-800">
-                  Pending: {students.filter(s => s.fee === 'Pending').length}
-                </span>
+                <span className="text-xs font-bold text-gray-300">Total: {studentsTotal} Students</span>
+                {searchTerm && (
+                  <span className="px-2 py-0.5 rounded bg-gray-800 text-gray-300 text-[10px] font-bold border border-gray-700">
+                    {filteredStudents.length} matching "{searchTerm}"
+                  </span>
+                )}
+                <button
+                  onClick={loadStudents}
+                  className="p-1.5 rounded-lg bg-gray-900 border border-gray-800 hover:border-[#D4A72C] text-gray-400 hover:text-[#D4A72C] cursor-pointer"
+                  title="Refresh"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${studentsLoading ? 'animate-spin' : ''}`} />
+                </button>
               </div>
               <button
                 onClick={() => setIsEnrollModalOpen(true)}
@@ -769,51 +822,49 @@ export const ErpDashboard = () => {
             </div>
 
             <div className="bg-[#222326] rounded-2xl border border-gray-800 overflow-hidden">
+              {studentsLoading ? (
+                <p className="text-xs text-gray-400 py-10 text-center">Loading students…</p>
+              ) : studentsError ? (
+                <p className="text-xs text-red-400 py-10 text-center">{studentsError}</p>
+              ) : filteredStudents.length === 0 ? (
+                <p className="text-xs text-gray-400 py-10 text-center">
+                  {searchTerm ? 'No students match your search.' : 'No students enrolled yet.'}
+                </p>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-gray-300">
                   <thead className="bg-gray-900 text-gray-400 uppercase font-bold border-b border-gray-800">
                     <tr>
                       <th className="p-3.5">Student ID</th>
                       <th className="p-3.5">Name</th>
-                      <th className="p-3.5">College</th>
-                      <th className="p-3.5">Course / Project</th>
-                      <th className="p-3.5">Batch</th>
+                      <th className="p-3.5">Institution</th>
+                      <th className="p-3.5">Degree / Semester</th>
+                      <th className="p-3.5">USN</th>
                       <th className="p-3.5">Contact</th>
-                      <th className="p-3.5">Progress</th>
-                      <th className="p-3.5">Fee Status</th>
+                      <th className="p-3.5">Status</th>
                       <th className="p-3.5">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
                     {filteredStudents.map((std) => (
                       <tr key={std.id} className="hover:bg-gray-800/40 transition-colors">
-                        <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{std.id}</td>
-                        <td className="p-3.5 font-bold text-white">{std.name}</td>
-                        <td className="p-3.5 text-gray-300">{std.college}</td>
-                        <td className="p-3.5">{std.course}</td>
-                        <td className="p-3.5 font-mono text-gray-400">{std.batch}</td>
+                        <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{std.business_id}</td>
+                        <td className="p-3.5 font-bold text-white">{std.user_details?.full_name}</td>
+                        <td className="p-3.5 text-gray-300">{std.institution_name}</td>
+                        <td className="p-3.5">{std.degree}{std.semester ? ` • Sem ${std.semester}` : ''}</td>
+                        <td className="p-3.5 font-mono text-gray-400">{std.usn || '—'}</td>
                         <td className="p-3.5 text-gray-400">
-                          <div>{std.phone}</div>
-                          <div className="text-[10px] text-gray-500">{std.email}</div>
+                          <div>{std.user_details?.phone || '—'}</div>
+                          <div className="text-[10px] text-gray-500">{std.user_details?.email}</div>
                         </td>
                         <td className="p-3.5">
-                          <div className="w-20 bg-gray-800 rounded-full h-2 overflow-hidden">
-                            <div className="bg-[#D4A72C] h-full" style={{ width: `${std.progress}%` }} />
-                          </div>
-                          <span className="text-[10px] text-gray-400">{std.progress}%</span>
-                        </td>
-                        <td className="p-3.5">
-                          <button
-                            onClick={() => toggleStudentFee(std.id)}
-                            className={`px-2.5 py-1 rounded text-[10px] font-bold border cursor-pointer ${
-                              std.fee === 'Paid' 
-                                ? 'bg-emerald-950 text-emerald-400 border-emerald-800 hover:bg-emerald-900' 
-                                : 'bg-amber-950 text-amber-400 border-amber-800 hover:bg-amber-900'
-                            }`}
-                            title="Click to toggle fee"
-                          >
-                            {std.fee} ⟳
-                          </button>
+                          <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${
+                            std.is_active
+                              ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                              : 'bg-gray-800 text-gray-400 border-gray-700'
+                          }`}>
+                            {std.is_active ? 'Active' : 'Inactive'}
+                          </span>
                         </td>
                         <td className="p-3.5">
                           <button
@@ -829,6 +880,7 @@ export const ErpDashboard = () => {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           </div>
         )}
@@ -1176,8 +1228,8 @@ export const ErpDashboard = () => {
                   <tr>
                     <th className="p-3.5">Student ID</th>
                     <th className="p-3.5">Student Name</th>
-                    <th className="p-3.5">College</th>
-                    <th className="p-3.5">Course</th>
+                    <th className="p-3.5">Institution</th>
+                    <th className="p-3.5">Degree</th>
                     <th className="p-3.5 text-center">Mark Attendance Status</th>
                   </tr>
                 </thead>
@@ -1186,10 +1238,10 @@ export const ErpDashboard = () => {
                     const currentStatus = attendanceRecords[std.id] || 'Present';
                     return (
                       <tr key={std.id} className="hover:bg-gray-800/40 transition-colors">
-                        <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{std.id}</td>
-                        <td className="p-3.5 font-bold text-white">{std.name}</td>
-                        <td className="p-3.5 text-gray-300">{std.college}</td>
-                        <td className="p-3.5 text-gray-400">{std.course}</td>
+                        <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{std.business_id}</td>
+                        <td className="p-3.5 font-bold text-white">{std.user_details?.full_name}</td>
+                        <td className="p-3.5 text-gray-300">{std.institution_name}</td>
+                        <td className="p-3.5 text-gray-400">{std.degree}</td>
                         <td className="p-3.5">
                           <div className="flex items-center justify-center gap-2">
                             <button
@@ -1769,7 +1821,9 @@ export const ErpDashboard = () => {
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
                 >
                   {students.map(s => (
-                    <option key={s.id} value={s.name}>{s.name} ({s.id} - {s.course})</option>
+                    <option key={s.id} value={s.user_details?.full_name}>
+                      {s.user_details?.full_name} ({s.business_id})
+                    </option>
                   ))}
                 </select>
               </div>

@@ -23,11 +23,14 @@ import { Contact } from './pages/Contact';
 import { Register } from './pages/Register';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 
 // Portals
 import { ErpDashboard } from './portals/erp/ErpDashboard';
 import { StudentDashboard } from './portals/student/StudentDashboard';
 import { InstitutionDashboard } from './portals/institution/InstitutionDashboard';
+import { ProtectedRoute } from './lib/auth/ProtectedRoute';
 
 // Helper component to scroll to top on route change
 const ScrollToTop = () => {
@@ -75,21 +78,23 @@ export const App = () => {
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* ERP Portal UI */}
-          <Route path="/erp" element={<ErpDashboard />} />
-          <Route path="/erp/dashboard" element={<ErpDashboard />} />
-          <Route path="/erp/*" element={<ErpDashboard />} />
+          {/* ERP Portal UI — staff/admin only (see lib/auth/roles.js) */}
+          <Route path="/erp/*" element={
+            <ProtectedRoute portal="erp"><ErpDashboard /></ProtectedRoute>
+          } />
 
           {/* Student Portal UI */}
-          <Route path="/student" element={<StudentDashboard />} />
-          <Route path="/student/dashboard" element={<StudentDashboard />} />
-          <Route path="/student/*" element={<StudentDashboard />} />
+          <Route path="/student/*" element={
+            <ProtectedRoute portal="student"><StudentDashboard /></ProtectedRoute>
+          } />
 
           {/* Institution Portal UI */}
-          <Route path="/institution" element={<InstitutionDashboard />} />
-          <Route path="/institution/dashboard" element={<InstitutionDashboard />} />
-          <Route path="/institution/*" element={<InstitutionDashboard />} />
+          <Route path="/institution/*" element={
+            <ProtectedRoute portal="institution"><InstitutionDashboard /></ProtectedRoute>
+          } />
 
           {/* Fallback route */}
           <Route path="*" element={<Home />} />

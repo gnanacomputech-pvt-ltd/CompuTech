@@ -1,33 +1,62 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { 
-  LayoutDashboard, Users, BookOpen, Layers, UserPlus, 
+import {
+  LayoutDashboard, Users, BookOpen, Layers, UserPlus,
   CheckSquare, FileBarChart, LogOut, Award
 } from 'lucide-react';
 import { Logo } from '../../components/Logo';
+import { useAuth } from '../../lib/auth/AuthContext';
+import { fetchDashboardStats } from '../../lib/api/dashboard';
+import { students as studentsApi } from '../../lib/api/core';
+import { ApiError } from '../../lib/api/client';
 
 export const InstitutionDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
+
+  // GET /dashboard/stats/ — apps/core/views.py DashboardStatsView._institution_stats
+  // Returns one entry per institution this coordinator manages (usually one).
+  const [stats, setStats] = useState(null);
+  const [statsError, setStatsError] = useState('');
+  const [statsLoading, setStatsLoading] = useState(true);
+  useEffect(() => {
+    fetchDashboardStats()
+      .then(setStats)
+      .catch((err) => setStatsError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not load your dashboard.'))
+      .finally(() => setStatsLoading(false));
+  }, []);
+  const primaryInstitution = stats?.institutions?.[0] || null;
+
+  const collegeProfile = {
+    name: primaryInstitution?.institution || user?.full_name || 'Institution Portal',
+    code: primaryInstitution?.code || '—',
+    studentsEnrolled: primaryInstitution?.students ?? '—',
+    activeBatches: primaryInstitution?.active_batches ?? '—',
+  };
+
+  // GET /students/ — StudentViewSet.get_queryset already scopes this to
+  // students whose institution's coordinator is the current user
+  // (apps/core/views.py), so no client-side filtering is needed here.
+  const [students, setStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [studentsError, setStudentsError] = useState('');
+  useEffect(() => {
+    studentsApi.list({ page_size: 100 })
+      .then((data) => setStudents(data.results))
+      .catch((err) => setStudentsError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not load students.'))
+      .finally(() => setStudentsLoading(false));
+  }, []);
 
   const sidebarItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
-    { name: 'Students', icon: Users, count: 120 },
+    { name: 'Students', icon: Users, count: students.length },
     { name: 'Programs', icon: BookOpen },
     { name: 'Batches', icon: Layers },
     { name: 'Enrollments', icon: UserPlus },
     { name: 'Attendance', icon: CheckSquare },
     { name: 'Reports', icon: FileBarChart },
   ];
-
-  const collegeProfile = {
-    name: 'Sunkadakatte Degree College',
-    code: 'INST-BLR-08',
-    partnerSince: '2024',
-    studentsEnrolled: 120,
-    activeBatches: 3,
-    workshopsConducted: 5
-  };
 
   // Derive active tab from current URL path
   const getTabFromPath = () => {
@@ -43,7 +72,8 @@ export const InstitutionDashboard = () => {
     navigate(path);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -128,9 +158,12 @@ export const InstitutionDashboard = () => {
 
         {/* TAB CONTENT SWITCHER */}
 
-        {/* 1. DASHBOARD TAB */}
+        {/* 1. DASHBOARD TAB — real data: GET /dashboard/stats/ */}
         {activeTab === 'Dashboard' && (
           <div className="space-y-8">
+            {statsError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl p-4">{statsError}</p>
+            )}
             {/* 3 Metric Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-2xl border border-[#E8E1D2] shadow-sm">
@@ -138,8 +171,8 @@ export const InstitutionDashboard = () => {
                   <span className="text-xs font-bold text-[#6B6B6B]">Enrolled Students</span>
                   <Users className="w-5 h-5 text-[#D4A72C] flex-shrink-0" />
                 </div>
-                <h3 className="text-2xl font-extrabold text-[#222326]">120</h3>
-                <p className="text-xs text-gray-500 mt-1">BCA & BSc Computer Science</p>
+                <h3 className="text-2xl font-extrabold text-[#222326]">{statsLoading ? '—' : collegeProfile.studentsEnrolled}</h3>
+                <p className="text-xs text-gray-500 mt-1">{collegeProfile.name}</p>
               </div>
 
               <div className="bg-white p-6 rounded-2xl border border-[#E8E1D2] shadow-sm">
@@ -147,45 +180,28 @@ export const InstitutionDashboard = () => {
                   <span className="text-xs font-bold text-[#6B6B6B]">Active Batches</span>
                   <Layers className="w-5 h-5 text-[#D4A72C] flex-shrink-0" />
                 </div>
-                <h3 className="text-2xl font-extrabold text-[#222326]">3</h3>
-                <p className="text-xs text-gray-500 mt-1">MERN & Python Track</p>
+                <h3 className="text-2xl font-extrabold text-[#222326]">{statsLoading ? '—' : collegeProfile.activeBatches}</h3>
+                <p className="text-xs text-gray-500 mt-1">Currently running</p>
               </div>
 
               <div className="bg-white p-6 rounded-2xl border border-[#E8E1D2] shadow-sm">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-[#6B6B6B]">Campus Workshops</span>
+                  <span className="text-xs font-bold text-[#6B6B6B]">Active Enrollments</span>
                   <Award className="w-5 h-5 text-[#D4A72C] flex-shrink-0" />
                 </div>
-                <h3 className="text-2xl font-extrabold text-[#222326]">5 Completed</h3>
-                <p className="text-xs text-emerald-600 font-semibold mt-1">100% Attendance Compliance</p>
-              </div>
-            </div>
-
-            {/* Institutional Reports & Batches */}
-            <div className="bg-white rounded-2xl border border-[#E8E1D2] p-4 sm:p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-[#222326] mb-4">College Student Progress Reports</h3>
-              <div className="space-y-3">
-                <div className="p-4 rounded-xl bg-[#FAFAF7] border border-[#E8E1D2] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-[#222326] break-words">Batch BCA-2026-A (Final Year Projects)</h4>
-                    <p className="text-gray-500">45 Students • Mentored by GCS Sunkadakatte</p>
-                  </div>
-                  <span className="self-start sm:self-auto px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold whitespace-nowrap">100% Code Verified</span>
-                </div>
-
-                <div className="p-4 rounded-xl bg-[#FAFAF7] border border-[#E8E1D2] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-[#222326] break-words">Batch PY-DATA-2026 (Data Analytics Bootcamp)</h4>
-                    <p className="text-gray-500">35 Students • Weekend Track</p>
-                  </div>
-                  <span className="self-start sm:self-auto px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-bold whitespace-nowrap">In Progress</span>
-                </div>
+                <h3 className="text-2xl font-extrabold text-[#222326]">
+                  {primaryInstitution ? primaryInstitution.enrollments.active : '—'}
+                </h3>
+                <p className="text-xs text-emerald-600 font-semibold mt-1">
+                  {primaryInstitution ? `${primaryInstitution.enrollments.completed} completed` : ''}
+                </p>
               </div>
             </div>
           </div>
         )}
 
-        {/* 2. STUDENTS TAB */}
+        {/* 2. STUDENTS TAB — real data: GET /students/ (server-side scoped
+             to this institution, apps/core/views.py StudentViewSet) */}
         {activeTab === 'Students' && (
           <div className="space-y-6">
             <div className="bg-white rounded-2xl border border-[#E8E1D2] p-6 shadow-sm space-y-4">
@@ -194,49 +210,47 @@ export const InstitutionDashboard = () => {
                   <h3 className="text-lg font-bold text-[#222326]">Enrolled College Students Directory</h3>
                   <p className="text-xs text-gray-500">Active students from {collegeProfile.name}</p>
                 </div>
-                <span className="px-3 py-1 rounded-full bg-[#17181A] text-[#D4A72C] font-bold text-xs">Total: 120 Students</span>
+                <span className="px-3 py-1 rounded-full bg-[#17181A] text-[#D4A72C] font-bold text-xs">Total: {students.length} Students</span>
               </div>
 
+              {studentsLoading ? (
+                <p className="text-xs text-gray-500 py-8 text-center">Loading students…</p>
+              ) : studentsError ? (
+                <p className="text-xs text-red-600 py-8 text-center">{studentsError}</p>
+              ) : students.length === 0 ? (
+                <p className="text-xs text-gray-500 py-8 text-center">No students enrolled from your institution yet.</p>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-[#252525]">
                   <thead className="bg-[#FAFAF7] text-gray-600 uppercase font-bold border-b border-[#E8E1D2]">
                     <tr>
                       <th className="p-3">Student ID</th>
                       <th className="p-3">Name</th>
-                      <th className="p-3">Enrolled Course</th>
-                      <th className="p-3">Batch</th>
-                      <th className="p-3">Progress</th>
+                      <th className="p-3">Degree</th>
+                      <th className="p-3">USN</th>
+                      <th className="p-3">Contact</th>
                       <th className="p-3">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E8E1D2]">
-                    <tr className="hover:bg-gray-50">
-                      <td className="p-3 font-mono font-bold text-[#B88918]">GCS-2026-BCA04</td>
-                      <td className="p-3 font-bold text-[#222326]">Prajwal Gowda</td>
-                      <td className="p-3">BCA Final Year Project & MERN Stack</td>
-                      <td className="p-3 font-mono">BCA-2026-A</td>
-                      <td className="p-3 font-bold text-emerald-600">75%</td>
-                      <td className="p-3"><span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">Active</span></td>
-                    </tr>
-                    <tr className="hover:bg-gray-50">
-                      <td className="p-3 font-mono font-bold text-[#B88918]">GCS-2026-BCA09</td>
-                      <td className="p-3 font-bold text-[#222326]">Meghana Rao</td>
-                      <td className="p-3">BCA Final Year Project Guidance</td>
-                      <td className="p-3 font-mono">BCA-2026-A</td>
-                      <td className="p-3 font-bold text-emerald-600">65%</td>
-                      <td className="p-3"><span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">Active</span></td>
-                    </tr>
-                    <tr className="hover:bg-gray-50">
-                      <td className="p-3 font-mono font-bold text-[#B88918]">GCS-2026-PY02</td>
-                      <td className="p-3 font-bold text-[#222326]">Ketan V.</td>
-                      <td className="p-3">Python & Data Science Track</td>
-                      <td className="p-3 font-mono">PY-DATA-2026</td>
-                      <td className="p-3 font-bold text-blue-600">40%</td>
-                      <td className="p-3"><span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">In Progress</span></td>
-                    </tr>
+                    {students.map((std) => (
+                      <tr key={std.id} className="hover:bg-gray-50">
+                        <td className="p-3 font-mono font-bold text-[#B88918]">{std.business_id}</td>
+                        <td className="p-3 font-bold text-[#222326]">{std.user_details?.full_name}</td>
+                        <td className="p-3">{std.degree}{std.semester ? ` • Sem ${std.semester}` : ''}</td>
+                        <td className="p-3 font-mono">{std.usn || '—'}</td>
+                        <td className="p-3 text-gray-500">{std.user_details?.email}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded font-bold ${
+                            std.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
+                          }`}>{std.is_active ? 'Active' : 'Inactive'}</span>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           </div>
         )}

@@ -3,6 +3,8 @@ import { SectionTitle } from '../components/SectionTitle';
 import { Button } from '../components/Button';
 import { Toast } from '../components/Toast';
 import { CheckCircle2, GraduationCap, Calendar, User, Phone, Mail, Building } from 'lucide-react';
+import { submitStudentRegistrationInquiry } from '../lib/api/public';
+import { ApiError } from '../lib/api/client';
 
 export const Register = () => {
   const [formData, setFormData] = useState({
@@ -19,6 +21,7 @@ export const Register = () => {
   const [errors, setErrors] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const validate = () => {
     const errs = {};
@@ -39,11 +42,35 @@ export const Register = () => {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validate()) {
+    if (!validate()) return;
+    setSubmitting(true);
+    try {
+      await submitStudentRegistrationInquiry({
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        college: formData.college,
+        course: formData.course,
+        program: formData.program,
+        preferred_date: formData.preferredDate || null,
+        message: formData.message,
+      });
       setIsSubmitted(true);
       setToastMessage('Registration Successful! Our academic coordinator will contact you shortly.');
+    } catch (err) {
+      if (err instanceof ApiError && err.fieldErrors && typeof err.fieldErrors === 'object') {
+        const mapped = {};
+        Object.entries(err.fieldErrors).forEach(([field, msgs]) => {
+          const key = field === 'full_name' ? 'fullName' : field === 'preferred_date' ? 'preferredDate' : field;
+          mapped[key] = Array.isArray(msgs) ? msgs[0] : msgs;
+        });
+        setErrors(mapped);
+      }
+      setToastMessage(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -246,8 +273,8 @@ export const Register = () => {
               </div>
 
               <div className="pt-4">
-                <Button type="submit" variant="primary" size="lg" className="w-full">
-                  Submit Registration
+                <Button type="submit" variant="primary" size="lg" className="w-full" disabled={submitting}>
+                  {submitting ? 'Submitting…' : 'Submit Registration'}
                 </Button>
               </div>
 

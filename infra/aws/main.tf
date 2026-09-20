@@ -5,6 +5,37 @@ locals {
     Environment = var.environment
     ManagedBy   = "terraform"
   }
+
+  # Shared by the api, celery worker, and celery beat task definitions so
+  # all three pool through RDS Proxy / ElastiCache the same way.
+  container_secrets = [
+    for key in ["SECRET_KEY", "DATABASE_URL", "REDIS_URL"] : {
+      name      = key
+      valueFrom = "${aws_secretsmanager_secret.app.arn}:${key}::"
+    }
+  ]
+
+  container_environment = [
+    { name = "DJANGO_SETTINGS_MODULE", value = "config.settings" },
+    { name = "DEBUG", value = "False" },
+    { name = "ALLOWED_HOSTS", value = var.allowed_hosts },
+    { name = "CORS_ALLOWED_ORIGINS", value = var.cors_allowed_origins },
+    # Django's CSRF check (admin login, session-authenticated browsable API)
+    # needs the scheme-qualified origin too, not just CORS — without this it
+    # falls back to settings.py's hardcoded default list, which won't match
+    # a real domain that differs from it.
+    { name = "CSRF_TRUSTED_ORIGINS", value = var.cors_allowed_origins },
+    { name = "FRONTEND_URL", value = var.frontend_url },
+    { name = "AWS_STORAGE_BUCKET_NAME", value = aws_s3_bucket.media.bucket },
+    { name = "AWS_S3_REGION_NAME", value = var.aws_region },
+    { name = "RDS_PROXY_ENABLED", value = "True" },
+    # Both default to disabled in settings.py (SECURE_HSTS_SECONDS=0,
+    # SECURE_SSL_REDIRECT=False) — enabling them before local.dns_enabled
+    # (i.e. before the ALB has an HTTPS listener, dns_tls.tf) would redirect
+    # every request into a loop against a domain that doesn't serve HTTPS yet.
+    { name = "SECURE_SSL_REDIRECT", value = local.dns_enabled ? "True" : "False" },
+    { name = "SECURE_HSTS_SECONDS", value = local.dns_enabled ? "31536000" : "0" }
+  ]
 }
 
 resource "aws_vpc" "main" {
@@ -207,32 +238,32 @@ resource "aws_security_group" "redis" {
 }
 
 resource "aws_db_instance" "main" {
-  identifier                         = local.name
-  engine                             = "postgres"
-  engine_version                     = "16"
-  instance_class                     = var.db_instance_class
-  allocated_storage                  = 50
-  max_allocated_storage              = 200
-  storage_type                       = "gp3"
-  storage_encrypted                  = true
-  db_name                            = "gcs_erp"
-  username                           = "gcs_admin"
-  password                           = random_password.database.result
-  port                               = 5432
-  multi_az                           = true
-  publicly_accessible                = false
-  backup_retention_period            = 7
-  backup_window                      = "18:00-19:00"
-  maintenance_window                 = "sun:19:00-sun:20:00"
-  deletion_protection                = true
-  skip_final_snapshot                = false
-  final_snapshot_identifier          = "${local.name}-final"
-  db_subnet_group_name               = aws_db_subnet_group.main.name
-  vpc_security_group_ids             = [aws_security_group.database.id]
-  apply_immediately                  = false
-  auto_minor_version_upgrade         = true
-  enabled_cloudwatch_logs_exports    = ["postgresql", "upgrade"]
-  tags                               = local.tags
+  identifier                      = local.name
+  engine                          = "postgres"
+  engine_version                  = "16"
+  instance_class                  = var.db_instance_class
+  allocated_storage               = 50
+  max_allocated_storage           = 200
+  storage_type                    = "gp3"
+  storage_encrypted               = true
+  db_name                         = "gcs_erp"
+  username                        = "gcs_admin"
+  password                        = random_password.database.result
+  port                            = 5432
+  multi_az                        = true
+  publicly_accessible             = false
+  backup_retention_period         = 7
+  backup_window                   = "18:00-19:00"
+  maintenance_window              = "sun:19:00-sun:20:00"
+  deletion_protection             = true
+  skip_final_snapshot             = false
+  final_snapshot_identifier       = "${local.name}-final"
+  db_subnet_group_name            = aws_db_subnet_group.main.name
+  vpc_security_group_ids          = [aws_security_group.database.id]
+  apply_immediately               = false
+  auto_minor_version_upgrade      = true
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+  tags                            = local.tags
 }
 
 resource "aws_elasticache_replication_group" "main" {
@@ -260,8 +291,10 @@ resource "aws_secretsmanager_secret" "app" {
 resource "aws_secretsmanager_secret_version" "app" {
   secret_id = aws_secretsmanager_secret.app.id
   secret_string = jsonencode({
-    SECRET_KEY   = random_password.django.result
-    DATABASE_URL = "postgresql://gcs_admin:${random_password.database.result}@${aws_db_instance.main.address}:5432/gcs_erp"
+    SECRET_KEY = random_password.django.result
+    # Routed through RDS Proxy (rds_proxy.tf), not the RDS instance directly,
+    # so the API + Celery worker + beat share one bounded connection pool.
+    DATABASE_URL = "postgresql://gcs_admin:${random_password.database.result}@${aws_db_proxy.main.endpoint}:5432/gcs_erp"
     REDIS_URL    = "rediss://:${random_password.redis.result}@${aws_elasticache_replication_group.main.primary_endpoint_address}:6379/0"
   })
 }
@@ -356,9 +389,28 @@ resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
   port              = 80
   protocol          = "HTTP"
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.api.arn
+
+  # No domain yet -> forward plain HTTP so the stack is reachable at all.
+  # Once domain_name is set, dns_tls.tf provisions ACM + the 443 listener
+  # and this flips to a redirect so nothing is ever served over plain HTTP.
+  dynamic "default_action" {
+    for_each = var.domain_name == "" ? [1] : []
+    content {
+      type             = "forward"
+      target_group_arn = aws_lb_target_group.api.arn
+    }
+  }
+
+  dynamic "default_action" {
+    for_each = var.domain_name != "" ? [1] : []
+    content {
+      type = "redirect"
+      redirect {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
   }
 }
 
@@ -385,21 +437,15 @@ resource "aws_ecs_task_definition" "api" {
       hostPort      = 8000
       protocol      = "tcp"
     }]
-    secrets = [
-      for key in ["SECRET_KEY", "DATABASE_URL", "REDIS_URL"] : {
-        name      = key
-        valueFrom = "${aws_secretsmanager_secret.app.arn}:${key}::"
-      }
-    ]
-    environment = [
-      { name = "DJANGO_SETTINGS_MODULE", value = "config.settings" },
-      { name = "DEBUG", value = "False" },
-      { name = "ALLOWED_HOSTS", value = var.allowed_hosts },
-      { name = "CORS_ALLOWED_ORIGINS", value = var.cors_allowed_origins },
-      { name = "FRONTEND_URL", value = var.frontend_url },
-      { name = "AWS_STORAGE_BUCKET_NAME", value = aws_s3_bucket.media.bucket },
-      { name = "AWS_S3_REGION_NAME", value = var.aws_region }
-    ]
+    secrets     = local.container_secrets
+    environment = local.container_environment
+    healthCheck = {
+      command     = ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health/ || exit 1"]
+      interval    = 30
+      timeout     = 5
+      retries     = 3
+      startPeriod = 60
+    }
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -410,6 +456,14 @@ resource "aws_ecs_task_definition" "api" {
     }
   }])
   tags = local.tags
+
+  # CI/CD (.github/workflows/deploy-*.yml) registers a new revision on every
+  # release with just the image tag bumped, fetched from the live task
+  # definition. Terraform still owns cpu/memory/roles/secrets/env — it just
+  # shouldn't fight the deploy pipeline over which image is current.
+  lifecycle {
+    ignore_changes = [container_definitions]
+  }
 }
 
 resource "aws_ecs_service" "api" {
@@ -431,7 +485,7 @@ resource "aws_ecs_service" "api" {
   load_balancer {
     target_group_arn = aws_lb_target_group.api.arn
     container_name   = "api"
-    container_port    = 8000
+    container_port   = 8000
   }
 
   depends_on = [aws_lb_listener.http]

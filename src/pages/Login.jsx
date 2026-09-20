@@ -1,33 +1,63 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
 import { Toast } from '../components/Toast';
 import { Mail, Lock, ShieldCheck, GraduationCap, Building2 } from 'lucide-react';
+import { useAuth } from '../lib/auth/AuthContext';
+import { portalForUser, portalHomePath } from '../lib/auth/roles';
+import { ApiError } from '../lib/api/client';
+
+const PORTAL_LABELS = { student: 'Student', erp: 'ERP Staff', institution: 'Institution' };
 
 export const Login = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('student@gnanacomputech.com');
-  const [password, setPassword] = useState('password123');
-  const [portalType, setPortalType] = useState('student'); // student, erp, institution
+  const location = useLocation();
+  const { login } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [portalType, setPortalType] = useState('student'); // student, erp, institution — cosmetic only, actual routing follows the account's real role
   const [toastMessage, setToastMessage] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    setToastMessage(`Login successful! Redirecting to ${portalType.toUpperCase()} portal...`);
-    setTimeout(() => {
-      if (portalType === 'erp') navigate('/erp/dashboard');
-      else if (portalType === 'institution') navigate('/institution/dashboard');
-      else navigate('/student/dashboard');
-    }, 1000);
+    setErrorMessage('');
+    setSubmitting(true);
+    try {
+      const user = await login(email, password);
+      const actualPortal = portalForUser(user);
+      if (!actualPortal) {
+        setErrorMessage('This account has no portal access assigned. Contact your administrator.');
+        return;
+      }
+      if (actualPortal !== portalType) {
+        setToastMessage(`Signed in as ${PORTAL_LABELS[actualPortal]} — redirecting to your portal.`);
+      } else {
+        setToastMessage('Login successful! Redirecting…');
+      }
+      const from = location.state?.from?.pathname;
+      const target = from && from.startsWith(`/${actualPortal}`) ? from : portalHomePath(user);
+      setTimeout(() => navigate(target, { replace: true }), 600);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setErrorMessage(err.code === 'AUTHENTICATION_FAILED'
+          ? 'Incorrect email or password.'
+          : (typeof err.message === 'string' ? err.message : 'Login failed. Please try again.'));
+      } else {
+        setErrorMessage('Login failed. Please try again.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="min-h-screen py-16 bg-[#FAFAF7] flex flex-col justify-center items-center px-4">
-      
+
       <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 border border-[#E8E1D2] shadow-xl">
-        
+
         <div className="text-center mb-8 space-y-3">
           <div className="inline-block">
             <Logo variant="light" size="large" />
@@ -36,7 +66,7 @@ export const Login = () => {
           <p className="text-xs text-[#6B6B6B]">Access your academic projects, course modules & portal dashboard.</p>
         </div>
 
-        {/* Portal selector tabs */}
+        {/* Portal selector tabs — cosmetic; you'll land on your account's actual portal regardless */}
         <div className="grid grid-cols-3 gap-1 bg-[#FAFAF7] p-1.5 rounded-xl border border-[#E8E1D2] mb-6">
           <button
             type="button"
@@ -66,6 +96,12 @@ export const Login = () => {
             <Building2 className="w-3.5 h-3.5" /> Institution
           </button>
         </div>
+
+        {errorMessage && (
+          <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
+            {errorMessage}
+          </div>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
@@ -102,27 +138,14 @@ export const Login = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs pt-1">
-            <label className="flex items-center space-x-2 text-gray-600 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="rounded text-[#D4A72C] focus:ring-[#D4A72C]"
-              />
-              <span>Remember me</span>
-            </label>
-            <button
-              type="button"
-              onClick={() => setToastMessage('Password reset link sent to your email.')}
-              className="font-bold text-[#B88918] hover:underline"
-            >
+          <div className="flex items-center justify-end text-xs pt-1">
+            <Link to="/forgot-password" className="font-bold text-[#B88918] hover:underline">
               Forgot password?
-            </button>
+            </Link>
           </div>
 
-          <Button type="submit" variant="primary" size="lg" className="w-full mt-2">
-            Log In to {portalType.toUpperCase()}
+          <Button type="submit" variant="primary" size="lg" className="w-full mt-2" disabled={submitting}>
+            {submitting ? 'Signing in…' : `Log In to ${portalType.toUpperCase()}`}
           </Button>
         </form>
 

@@ -1,0 +1,113 @@
+name: CI — Tests, Lint, Migration Check
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+  push:
+    branches: [ develop ]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    name: Lint, Test & Migration Check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: gcs_erp_test
+          POSTGRES_USER: gcs_test
+          POSTGRES_PASSWORD: gcs_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: gcs_erp/requirements/dev.txt
+
+      - name: Install Python dependencies
+        working-directory: gcs_erp
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/dev.txt
+
+      - name: Lint with flake8
+        working-directory: gcs_erp
+        run: |
+          flake8 apps config tests --max-line-length=120 --exclude=migrations,__pycache__ --statistics
+
+      - name: Run Django system checks
+        working-directory: gcs_erp
+        env:
+          DATABASE_URL: postgresql://gcs_test:gcs_test_password@localhost:5432/gcs_erp_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-secret-key-only-for-checks
+          DEBUG: 'False'
+        run: |
+          python manage.py check --deploy
+          python manage.py check
+
+      - name: Wait for services
+        run: |
+          until pg_isready -h localhost -p 5432 -U gcs_test; do sleep 2; done
+          until redis-cli -h localhost ping; do sleep 2; done
+
+      - name: Apply migrations
+        working-directory: gcs_erp
+        env:
+          DATABASE_URL: postgresql://gcs_test:gcs_test_password@localhost:5432/gcs_erp_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-secret-key-only-for-tests
+        run: |
+          python manage.py makemigrations --check --dry-run
+          python manage.py migrate
+
+      - name: Seed test data
+        working-directory: gcs_erp
+        env:
+          DATABASE_URL: postgresql://gcs_test:gcs_test_password@localhost:5432/gcs_erp_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-secret-key-only-for-tests
+        run: |
+          python manage.py seed_erp_data
+
+      - name: Run test suite
+        working-directory: gcs_erp
+        env:
+          DATABASE_URL: postgresql://gcs_test:gcs_test_password@localhost:5432/gcs_erp_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-secret-key-only-for-tests
+          DEBUG: 'False'
+        run: |
+          pytest tests/ -v --tb=short --maxfail=5
+
+      - name: Collect test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: gcs_erp/pytest-results.xml
+          if-no-files-found: ignore

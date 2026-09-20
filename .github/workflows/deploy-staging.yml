@@ -1,0 +1,109 @@
+name: Deploy — Staging (AWS ECS Fargate)
+
+on:
+  push:
+    branches: [ develop ]
+
+permissions:
+  contents: read
+  id-token: write
+
+# Names must match infra/aws (Terraform) with environment="staging" —
+# see infra/aws/main.tf and infra/aws/workers.tf.
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+  ECR_REPOSITORY: gcs-erp-staging-api
+  ECS_CLUSTER: gcs-erp-staging
+  ECS_SERVICE_API: gcs-erp-staging-api
+  ECS_SERVICE_WORKER: gcs-erp-staging-worker
+  ECS_SERVICE_BEAT: gcs-erp-staging-beat
+  TASK_FAMILY_API: gcs-erp-staging-api
+  TASK_FAMILY_WORKER: gcs-erp-staging-worker
+  TASK_FAMILY_BEAT: gcs-erp-staging-beat
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging — ECS Fargate
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Check for uncommitted migrations
+        run: |
+          git add gcs_erp/apps/*/migrations/
+          git diff --cached --exit-code --quiet || {
+            echo "::error::Uncommitted migrations detected. Commit migration files before deploying."
+            exit 1
+          }
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./gcs_erp -f ./gcs_erp/docker/Dockerfile
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:staging
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:staging
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Deploy API service
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+        run: |
+          aws ecs describe-task-definition --task-definition "$TASK_FAMILY_API" \
+            --query 'taskDefinition' > api-task-def.json
+          jq --arg IMAGE "$IMAGE" '.containerDefinitions[0].image = $IMAGE' api-task-def.json \
+            | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            > api-task-def.rendered.json
+          aws ecs register-task-definition --cli-input-json file://api-task-def.rendered.json
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE_API" \
+            --task-definition "$TASK_FAMILY_API" --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_API"
+
+      - name: Deploy Celery worker service
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+        run: |
+          aws ecs describe-task-definition --task-definition "$TASK_FAMILY_WORKER" \
+            --query 'taskDefinition' > worker-task-def.json
+          jq --arg IMAGE "$IMAGE" '.containerDefinitions[0].image = $IMAGE' worker-task-def.json \
+            | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            > worker-task-def.rendered.json
+          aws ecs register-task-definition --cli-input-json file://worker-task-def.rendered.json
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE_WORKER" \
+            --task-definition "$TASK_FAMILY_WORKER" --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_WORKER"
+
+      - name: Deploy Celery beat service
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+        run: |
+          aws ecs describe-task-definition --task-definition "$TASK_FAMILY_BEAT" \
+            --query 'taskDefinition' > beat-task-def.json
+          jq --arg IMAGE "$IMAGE" '.containerDefinitions[0].image = $IMAGE' beat-task-def.json \
+            | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            > beat-task-def.rendered.json
+          aws ecs register-task-definition --cli-input-json file://beat-task-def.rendered.json
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE_BEAT" \
+            --task-definition "$TASK_FAMILY_BEAT" --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_BEAT"
+
+      - name: Smoke test
+        run: |
+          echo "Staging deployment complete — commit ${{ github.sha }}"
+          date

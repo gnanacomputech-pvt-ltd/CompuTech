@@ -2,8 +2,21 @@ aws_region           = "ap-south-1"
 project_name         = "gcs-erp"
 environment          = "production"
 container_image      = "123456789012.dkr.ecr.ap-south-1.amazonaws.com/gcs-erp-production-api:replace-me"
-allowed_hosts        = "api.example.com,localhost"
-cors_allowed_origins = "https://example.com"
-frontend_url         = "https://example.com"
+allowed_hosts        = "api.gnanacomputech.com,verify.gnanacomputech.com"
+cors_allowed_origins = "https://gnanacomputech.com,https://www.gnanacomputech.com"
+frontend_url         = "https://gnanacomputech.com"
 db_instance_class    = "db.t4g.small"
 redis_node_type      = "cache.t4g.micro"
+
+# Leave domain_name empty for a first apply with no domain yet: the ALB
+# stays HTTP-only and the frontend serves from CloudFront's default
+# *.cloudfront.net domain. Fill these in once the domain is ready and
+# re-apply — dns_tls.tf handles ACM + Route53 + the HTTPS listener.
+domain_name   = ""
+manage_dns    = true
+api_subdomain = "api"
+
+# Who CloudWatch alarms page (Section 10.1: "confirm the alarms reach a
+# real person"). Add a Slack/PagerDuty subscription to the sns_alerts_topic_arn
+# output for anything beyond email.
+alert_email = ""

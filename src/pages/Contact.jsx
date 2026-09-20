@@ -3,6 +3,8 @@ import { SectionTitle } from '../components/SectionTitle';
 import { Button } from '../components/Button';
 import { Toast } from '../components/Toast';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle2, Building2 } from 'lucide-react';
+import { submitContactInquiry } from '../lib/api/public';
+import { ApiError } from '../lib/api/client';
 
 export const Contact = () => {
   const [formData, setFormData] = useState({
@@ -16,6 +18,7 @@ export const Contact = () => {
   const [errors, setErrors] = useState({});
   const [toastMessage, setToastMessage] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const validate = () => {
     const errs = {};
@@ -36,9 +39,12 @@ export const Contact = () => {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validate()) {
+    if (!validate()) return;
+    setSubmitting(true);
+    try {
+      await submitContactInquiry(formData);
       setIsSubmitted(true);
       setToastMessage('Thank you! Your message has been submitted.');
       setFormData({
@@ -48,6 +54,17 @@ export const Contact = () => {
         subject: 'Academic Project Enquiry',
         message: ''
       });
+    } catch (err) {
+      if (err instanceof ApiError && err.fieldErrors && typeof err.fieldErrors === 'object') {
+        const mapped = {};
+        Object.entries(err.fieldErrors).forEach(([field, msgs]) => {
+          mapped[field] = Array.isArray(msgs) ? msgs[0] : msgs;
+        });
+        setErrors(mapped);
+      }
+      setToastMessage(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -225,8 +242,8 @@ export const Contact = () => {
                 {errors.message && <p className="text-xs text-red-500 mt-1">{errors.message}</p>}
               </div>
 
-              <Button type="submit" variant="primary" size="lg" className="w-full" icon={Send}>
-                Send Message Now
+              <Button type="submit" variant="primary" size="lg" className="w-full" icon={Send} disabled={submitting}>
+                {submitting ? 'Sending…' : 'Send Message Now'}
               </Button>
             </form>
 

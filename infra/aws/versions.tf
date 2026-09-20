@@ -17,6 +17,14 @@ provider "aws" {
   region = var.aws_region
 }
 
+# CloudFront distributions, their ACM certs, and CLOUDFRONT-scope WAF web
+# ACLs are global resources that the AWS API only accepts in us-east-1,
+# regardless of where the rest of the stack (ALB, RDS, ECS) lives.
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
 data "aws_availability_zones" "available" {
   state = "available"
 }

@@ -1,0 +1,146 @@
+name: Deploy — Production (AWS ECS Fargate)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual deploy'
+        required: true
+        default: 'Manual production deployment'
+
+permissions:
+  contents: read
+  id-token: write
+
+# Names must match infra/aws (Terraform): cluster/services are
+# "${project_name}-${environment}[-api|-worker|-beat]" — see
+# infra/aws/main.tf (local.name, aws_ecs_cluster.main, aws_ecs_service.api)
+# and infra/aws/workers.tf (aws_ecs_service.worker / .beat).
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'ap-south-1' }}
+  ECR_REPOSITORY: gcs-erp-production-api
+  ECS_CLUSTER: gcs-erp-production
+  ECS_SERVICE_API: gcs-erp-production-api
+  ECS_SERVICE_WORKER: gcs-erp-production-worker
+  ECS_SERVICE_BEAT: gcs-erp-production-beat
+  TASK_FAMILY_API: gcs-erp-production-api
+  TASK_FAMILY_WORKER: gcs-erp-production-worker
+  TASK_FAMILY_BEAT: gcs-erp-production-beat
+
+jobs:
+  deploy-production:
+    name: Deploy to Production — ECS Fargate
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Confirm production deploy
+        run: |
+          echo "About to deploy commit ${{ github.sha }} to PRODUCTION"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger reason: ${{ github.event.inputs.reason }}"
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Confirm recent backup exists
+        run: |
+          echo "=== Pre-deploy backup check ==="
+          echo "RDS Multi-AZ automated snapshots run continuously; this only checks the independent scripted pg_dump copy (scripts/backup_db_to_s3.sh)."
+          LATEST=$(aws s3 ls "s3://${{ secrets.BACKUP_BUCKET_NAME }}/" --recursive | sort | tail -n 1)
+          echo "Most recent backup object: ${LATEST:-<none found>}"
+          if [ -z "$LATEST" ]; then
+            echo "::warning::No backup object found in ${{ secrets.BACKUP_BUCKET_NAME }} — verify the backup cron/schedule before relying on this deploy."
+          fi
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./gcs_erp -f ./gcs_erp/docker/Dockerfile
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:production
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:production
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      # Terraform owns cpu/memory/roles/secrets/env (infra/aws/main.tf has
+      # `lifecycle { ignore_changes = [container_definitions] }` for exactly
+      # this reason) — deploy only ever bumps the image on whatever
+      # definition is currently live, it never reconstructs one from a
+      # committed template that could drift from what Terraform applied.
+      - name: Deploy API service
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+        run: |
+          aws ecs describe-task-definition --task-definition "$TASK_FAMILY_API" \
+            --query 'taskDefinition' > api-task-def.json
+          jq --arg IMAGE "$IMAGE" '.containerDefinitions[0].image = $IMAGE' api-task-def.json \
+            | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            > api-task-def.rendered.json
+          aws ecs register-task-definition --cli-input-json file://api-task-def.rendered.json
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE_API" \
+            --task-definition "$TASK_FAMILY_API" --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_API"
+
+      - name: Deploy Celery worker service
+        run: |
+          aws ecs describe-task-definition --task-definition "$TASK_FAMILY_WORKER" \
+            --query 'taskDefinition' > worker-task-def.json
+          jq --arg IMAGE "$IMAGE" '.containerDefinitions[0].image = $IMAGE' worker-task-def.json \
+            | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            > worker-task-def.rendered.json
+          aws ecs register-task-definition --cli-input-json file://worker-task-def.rendered.json
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE_WORKER" \
+            --task-definition "$TASK_FAMILY_WORKER" --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_WORKER"
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+
+      - name: Deploy Celery beat service
+        run: |
+          aws ecs describe-task-definition --task-definition "$TASK_FAMILY_BEAT" \
+            --query 'taskDefinition' > beat-task-def.json
+          jq --arg IMAGE "$IMAGE" '.containerDefinitions[0].image = $IMAGE' beat-task-def.json \
+            | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            > beat-task-def.rendered.json
+          aws ecs register-task-definition --cli-input-json file://beat-task-def.rendered.json
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE_BEAT" \
+            --task-definition "$TASK_FAMILY_BEAT" --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_BEAT"
+        env:
+          IMAGE: ${{ steps.build.outputs.image }}
+
+      - name: Smoke test
+        run: |
+          echo "=== Running smoke test ==="
+          curl -f -sS "https://${{ secrets.API_HOSTNAME || 'api.gnanacomputech.com' }}/api/v1/health/" -o /dev/null \
+            && echo "API is healthy" \
+            || { echo "::error::Health check failed — check CloudWatch logs before trusting this deploy"; exit 1; }
+
+      - name: Run RDS failover test (optional, pre-go-live)
+        if: github.event.inputs.reason == 'Pre-go-live failover test'
+        run: |
+          echo "=== Initiating RDS Multi-AZ failover test ==="
+          aws rds reboot-db-instance --db-instance-identifier ${{ secrets.RDS_INSTANCE_ID }} --force-failover
+          echo "Failover initiated — verify automatic recovery in the RDS console."
+
+      - name: Deployment complete
+        run: |
+          echo "=== Production deployment complete ==="
+          echo "Commit: ${{ github.sha }}"
+          date
