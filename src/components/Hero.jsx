@@ -62,7 +62,7 @@ export const Hero = () => {
 
               {/* Main Headline */}
               <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold text-[#01083f] tracking-tight leading-tight sm:leading-[1.2] mb-4">
-                Learning Made Simple — <br className="hidden sm:inline" />
+                Learning Made Simple <br className="hidden sm:inline" />
                 <span className="text-[#B88918] bg-clip-text text-transparent bg-gradient-to-r from-[#D4A72C] via-[#B88918] to-[#D4A72C]">
                   Skills Made Powerful
                 </span>
@@ -97,7 +97,7 @@ export const Hero = () => {
 
           {/* RIGHT: Hero Image Carousel Slider */}
           <div className="lg:col-span-5">
-            <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white bg-slate-900 aspect-[4/3] sm:aspect-[16/11] group">
+            <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white bg-slate-900 aspect-[4/3] sm:aspect-video group">
               
               {/* Slides */}
               {heroSlides.map((slide, index) => (

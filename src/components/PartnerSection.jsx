@@ -302,45 +302,45 @@ export const PartnerSection = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {partnersData.map((partner) => (
               <div
                 key={partner.id}
-                className="group relative bg-white rounded-2xl p-6 border border-gray-200/90 hover:border-[#0f766e]/60 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between"
+                className="group relative bg-white rounded-xl p-4 border border-gray-200/90 hover:border-[#0f766e]/60 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
               >
                 {/* Top Accent Bar */}
-                <div className="absolute top-0 left-6 right-6 h-1 bg-gradient-to-r from-[#01083f] via-[#0f766e] to-[#ffcc00] rounded-b opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute top-0 left-4 right-4 h-1 bg-gradient-to-r from-[#01083f] via-[#0f766e] to-[#ffcc00] rounded-b opacity-0 group-hover:opacity-100 transition-opacity" />
 
                 <div>
                   {/* Badge & Icon */}
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#01083f]/5 text-[#01083f] border border-[#01083f]/10 group-hover:bg-[#0f766e] group-hover:text-white group-hover:border-[#0f766e] transition-colors">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#01083f]/5 text-[#01083f] border border-[#01083f]/10 group-hover:bg-[#0f766e] group-hover:text-white group-hover:border-[#0f766e] transition-colors">
                       {partner.type}
                     </span>
-                    <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-[#01083f] group-hover:bg-[#ffcc00]/20 group-hover:text-[#01083f] transition-colors">
-                      <GraduationCap className="w-4 h-4" />
+                    <div className="w-7 h-7 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-[#01083f] group-hover:bg-[#ffcc00]/20 group-hover:text-[#01083f] transition-colors">
+                      <GraduationCap className="w-3.5 h-3.5" />
                     </div>
                   </div>
 
                   {/* College Name */}
-                  <h4 className="text-base font-bold text-[#01083f] leading-snug group-hover:text-[#0f766e] transition-colors mb-2">
+                  <h4 className="text-sm font-bold text-[#01083f] leading-snug group-hover:text-[#0f766e] transition-colors mb-1.5">
                     {partner.name}
                   </h4>
 
                   {/* Location */}
-                  <p className="text-xs text-gray-500 flex items-center gap-1.5 mb-3 font-medium">
-                    <MapPin className="w-3.5 h-3.5 text-[#0f766e] flex-shrink-0" />
+                  <p className="text-[11px] text-gray-500 flex items-center gap-1.5 mb-2 font-medium">
+                    <MapPin className="w-3 h-3 text-[#0f766e] flex-shrink-0" />
                     <span>{partner.location}</span>
                   </p>
 
                   {/* Description */}
-                  <p className="text-xs text-gray-600 leading-relaxed line-clamp-3 mb-4">
+                  <p className="text-[11px] text-gray-600 leading-relaxed line-clamp-2 mb-3">
                     {partner.description}
                   </p>
                 </div>
 
                 {/* Footer Stats & Tag */}
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px]">
+                <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between text-[10px]">
                   <span className="font-semibold text-[#0f766e] flex items-center gap-1">
                     <Users className="w-3 h-3" />
                     {partner.studentsImpacted}
@@ -410,42 +410,42 @@ export const PartnerSection = () => {
                     key={index}
                     className="w-full sm:w-1/2 lg:w-1/3 xl:w-1/4 flex-shrink-0 px-2.5"
                   >
-                    <div className="h-full p-6 rounded-2xl bg-white border border-gray-200/90 shadow-sm hover:border-gray-300 hover:shadow-md transition-all duration-300 text-center flex flex-col items-center justify-between">
+                    <div className="h-full p-4 rounded-xl bg-white border border-gray-200/90 shadow-sm hover:border-gray-300 hover:shadow-md transition-all duration-300 text-center flex flex-col items-center justify-between">
                       <div className="flex flex-col items-center w-full">
                         {cert.image ? (
-                          <div className="h-14 w-full flex items-center justify-center mb-3.5 p-1.5 rounded-xl bg-gray-50 border border-gray-100">
+                          <div className="h-11 w-full flex items-center justify-center mb-2.5 p-1 rounded-lg bg-gray-50 border border-gray-100">
                             <img
                               src={cert.image}
                               alt={cert.title}
-                              className="max-h-12 w-auto object-contain rounded"
+                              className="max-h-9 w-auto object-contain rounded"
                             />
                           </div>
                         ) : (
-                          <div className="h-14 w-full flex items-center justify-center mb-3.5">
-                            <span className="text-3xl sm:text-4xl">
+                          <div className="h-11 w-full flex items-center justify-center mb-2.5">
+                            <span className="text-2xl sm:text-3xl">
                               {cert.icon}
                             </span>
                           </div>
                         )}
 
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-[#0f766e]/10 text-[#0f766e] border border-[#0f766e]/20 mb-2">
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#0f766e]/10 text-[#0f766e] border border-[#0f766e]/20 mb-1.5">
                           {cert.badge}
                         </span>
 
-                        <h4 className="text-base font-extrabold text-[#01083f] leading-snug">
+                        <h4 className="text-sm font-extrabold text-[#01083f] leading-snug">
                           {cert.title}
                         </h4>
 
-                        <p className="text-xs font-semibold text-[#0f766e] mt-1">
+                        <p className="text-[11px] font-semibold text-[#0f766e] mt-0.5">
                           {cert.subtitle}
                         </p>
 
-                        <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                        <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed line-clamp-2">
                           {cert.description}
                         </p>
                       </div>
 
-                      <div className="mt-4 pt-3 border-t border-gray-100 w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-[#0f766e]">
+                      <div className="mt-3 pt-2.5 border-t border-gray-100 w-full flex items-center justify-center gap-1.5 text-[10px] font-semibold text-[#0f766e]">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>Verified Statutory Record</span>
                       </div>
