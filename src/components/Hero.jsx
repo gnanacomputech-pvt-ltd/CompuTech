@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, ChevronLeft, ChevronRight, GraduationCap, Calendar, ShieldCheck, Code, BookOpen, Briefcase, Award, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, GraduationCap, Calendar, Code, BookOpen, Briefcase, Award, CheckCircle2 } from 'lucide-react';
 import { Button } from './Button';
 import { Link } from 'react-router-dom';
 
@@ -54,12 +54,6 @@ export const Hero = () => {
           <div className="lg:col-span-7">
             <div className="bg-white rounded-3xl p-7 sm:p-10 lg:p-12 shadow-xl border border-gray-100 relative">
               
-              {/* Top Accreditation Pill */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#01083f]/5 border border-[#01083f]/15 text-xs font-extrabold text-[#01083f] mb-5">
-                <ShieldCheck className="w-4 h-4 text-[#0f766e]" />
-                <span>DPIIT Recognized Software & Skill Institute</span>
-              </div>
-
               {/* Main Headline */}
               <h1 className="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold text-[#01083f] tracking-tight leading-tight sm:leading-[1.2] mb-4">
                 Learning Made Simple <br className="hidden sm:inline" />
