@@ -6,14 +6,29 @@ import {
   Settings, LogOut, Bell, Search, TrendingUp, Calendar, AlertCircle, ChevronRight,
   Plus, Trash2, Edit, Check, X, Download, Filter, Eye, Phone, Mail, MapPin,
   Sparkles, Printer, FileText, CheckCircle2, Clock, ShieldCheck, RefreshCw,
-  Image, Upload
+  Image, Upload, Layout
 } from 'lucide-react';
 import { Logo } from '../../components/Logo';
 import { galleryData } from '../../data/galleryData';
 import { useAuth } from '../../lib/auth/AuthContext';
-import { students as studentsApi } from '../../lib/api/core';
+import {
+  isFullAccess as isFullAccessRole, canWriteFullOnly, canWriteDomain,
+  canAccessEmployees, canCreateEmployee,
+} from '../../lib/auth/permissions';
+import {
+  students as studentsApi, institutions as institutionsApi, programs as programsApi,
+  batches as batchesApi, employees as employeesApi, enrollments as enrollmentsApi,
+  departments as departmentsApi, createEmployeeWithUser, ASSIGNABLE_STAFF_ROLES,
+} from '../../lib/api/core';
+import { projects as projectsApi, assessments as assessmentsApi } from '../../lib/api/academics';
+import {
+  invoices as invoicesApi, payments as paymentsApi, certificates as certificatesApi,
+  issueCertificate, revokeCertificate,
+} from '../../lib/api/finance';
 import { fetchDashboardStats } from '../../lib/api/dashboard';
 import { ApiError } from '../../lib/api/client';
+import { siteContent as siteContentApi, CONTENT_SECTIONS } from '../../lib/api/content';
+import { useCrudResource } from '../../lib/hooks/useCrudResource';
 
 export const ErpDashboard = () => {
   const navigate = useNavigate();
@@ -21,6 +36,20 @@ export const ErpDashboard = () => {
   const { user, logout } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [toast, setToast] = useState(null);
+
+  // UI-only mirror of the backend's role tiers (apps/common/permissions.py)
+  // — hides actions the backend would reject anyway, rather than letting a
+  // Medium-access user click into a form just to hit a 403.
+  const perms = {
+    isFullAccess: isFullAccessRole(user),
+    canWriteCore: canWriteFullOnly(user),                    // Institutions, Programs, Batches, Projects, Enrollments
+    canWriteAttendance: canWriteDomain(user, 'attendance'),   // Trainer, Mentor
+    canWriteAssessments: canWriteDomain(user, 'assessments'), // Trainer, Mentor
+    canWriteFinance: canWriteDomain(user, 'finance'),         // Accounts
+    canWriteContent: canWriteDomain(user, 'content'),         // Content Manager
+    canAccessEmployees: canAccessEmployees(user),             // Full-access only
+    canCreateEmployee: canCreateEmployee(user),               // Super Admin only
+  };
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -152,82 +181,287 @@ export const ErpDashboard = () => {
   // ----------------------------------------------------
   // 2. STATE: INSTITUTIONS
   // ----------------------------------------------------
-  const [institutions, setInstitutions] = useState([
-    { id: 1, name: 'Sunkadakatte First Grade Degree College', location: 'Sunkadakatte, Bangalore', type: 'Academic Partner', mouStatus: 'Active', students: 120, contact: 'Dr. Ramesh N. (Principal)' },
-    { id: 2, name: 'Acharya Group of Institutions', location: 'Soladevanahalli, Bangalore', type: 'College Association', mouStatus: 'Active', students: 250, contact: 'Prof. Suresh K. (HOD CS)' },
-    { id: 3, name: 'Soundarya Institute of Management & Science', location: 'Soundarya Layout, Bangalore', type: 'Workshop Partner', mouStatus: 'Active', students: 95, contact: 'Mrs. Anitha Rao' },
-    { id: 4, name: 'Peenya Govt. Technical Institute', location: 'Peenya Industrial Area', type: 'Skill Partner', mouStatus: 'Active', students: 80, contact: 'Mr. Siddaramaiah' },
-    { id: 5, name: 'Government First Grade College, Peenya', location: 'Peenya, Bangalore North', type: 'Degree Project Lab', mouStatus: 'Active', students: 110, contact: 'Dr. Manjunath P.' },
-    { id: 6, name: 'East West Institute of Technology (EWIT)', location: 'Magadi Main Road, Bangalore', type: 'Institutional Network', mouStatus: 'Active', students: 160, contact: 'Prof. Hemant Kumar' }
-  ]);
+  // ----------------------------------------------------
+  // 2. STATE: INSTITUTIONS — real data: /api/v1/institutions/
+  // ----------------------------------------------------
+  const institutionsRes = useCrudResource(institutionsApi);
+  const institutions = institutionsRes.items;
+  const emptyInstForm = { code: '', name: '', address: '', city: '', state: 'Karnataka', contact_email: '', contact_phone: '' };
+  const [isInstModalOpen, setIsInstModalOpen] = useState(false);
+  const [editingInstId, setEditingInstId] = useState(null);
+  const [instForm, setInstForm] = useState(emptyInstForm);
+  const [instFormError, setInstFormError] = useState('');
+  const openAddInstitution = () => { setEditingInstId(null); setInstForm(emptyInstForm); setInstFormError(''); setIsInstModalOpen(true); };
+  const openEditInstitution = (inst) => {
+    setEditingInstId(inst.id);
+    setInstForm({ code: inst.code, name: inst.name, address: inst.address || '', city: inst.city || '', state: inst.state || 'Karnataka', contact_email: inst.contact_email || '', contact_phone: inst.contact_phone || '' });
+    setInstFormError('');
+    setIsInstModalOpen(true);
+  };
+  const handleSaveInstitution = async (e) => {
+    e.preventDefault();
+    if (!instForm.name.trim() || !instForm.code.trim()) { setInstFormError('Code and Name are required.'); return; }
+    try {
+      if (editingInstId) { await institutionsApi.update(editingInstId, instForm); showToast('Institution updated successfully!'); }
+      else { await institutionsApi.create(instForm); showToast('Institution added successfully!'); }
+      setIsInstModalOpen(false);
+      institutionsRes.load();
+    } catch (err) {
+      setInstFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not save this institution.');
+    }
+  };
+  const handleDeleteInstitution = async (id) => {
+    if (!window.confirm('Delete this institution? This cannot be undone.')) return;
+    try { await institutionsApi.remove(id); showToast('Institution removed'); institutionsRes.load(); }
+    catch (err) { showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not delete this institution.', 'error'); }
+  };
 
   // ----------------------------------------------------
-  // 3. STATE: EMPLOYEES / STAFF
+  // 3. STATE: EMPLOYEES / STAFF — real data: /api/v1/employees/
+  // Employee.user is a required OneToOneField to a User (apps/core/models.py),
+  // so Add goes through createEmployeeWithUser (apps/core/views.py
+  // EmployeeViewSet.create_with_user), which creates the login account and
+  // the employee profile together and assigns an ERP role. Edit only touches
+  // designation/department (not the linked login); Delete removes the record.
   // ----------------------------------------------------
-  const [employees, setEmployees] = useState([
-    { id: 'EMP-01', name: 'Naveen Kumar', role: 'Principal Tech Architect', dept: 'Software & Mentorship', email: 'naveen@gnanacomputech.com', phone: '9880198801', status: 'Active' },
-    { id: 'EMP-02', name: 'Sowmya M.', role: 'Senior Python & AI Trainer', dept: 'Skill Training', email: 'sowmya@gnanacomputech.com', phone: '9880198802', status: 'Active' },
-    { id: 'EMP-03', name: 'Harish Babu', role: 'Java Stack Lead', dept: 'Software Development', email: 'harish@gnanacomputech.com', phone: '9880198803', status: 'Active' },
-    { id: 'EMP-04', name: 'Pavithra S.', role: 'Academic Project Coordinator', dept: 'Student Relations', email: 'pavithra@gnanacomputech.com', phone: '9880198804', status: 'Active' },
-    { id: 'EMP-05', name: 'Chandrashekar K.', role: 'Lab & System Administrator', dept: 'Infrastructure', email: 'shekar@gnanacomputech.com', phone: '9880198805', status: 'Active' }
-  ]);
+  const employeesRes = useCrudResource(employeesApi);
+  const employees = employeesRes.items;
+  const departmentsRes = useCrudResource(departmentsApi);
+  const departments = departmentsRes.items;
+  const [isEmpModalOpen, setIsEmpModalOpen] = useState(false);
+  const [editingEmpId, setEditingEmpId] = useState(null);
+  const [empForm, setEmpForm] = useState({ designation: '', department: '' });
+  const [empFormError, setEmpFormError] = useState('');
+  const openEditEmployee = (emp) => {
+    setEditingEmpId(emp.id);
+    setEmpForm({ designation: emp.designation || '', department: emp.department || '' });
+    setEmpFormError('');
+    setIsEmpModalOpen(true);
+  };
+  const handleSaveEmployee = async (e) => {
+    e.preventDefault();
+    if (!empForm.designation.trim()) { setEmpFormError('Designation is required.'); return; }
+    try {
+      await employeesApi.update(editingEmpId, { designation: empForm.designation, department: empForm.department || null });
+      showToast('Employee updated successfully!');
+      setIsEmpModalOpen(false);
+      employeesRes.load();
+    } catch (err) {
+      setEmpFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not save this employee.');
+    }
+  };
+  const handleDeleteEmployee = async (id) => {
+    if (!window.confirm('Remove this employee record? This cannot be undone.')) return;
+    try { await employeesApi.remove(id); showToast('Employee removed'); employeesRes.load(); }
+    catch (err) { showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not remove this employee.', 'error'); }
+  };
+
+  const emptyAddEmpForm = {
+    full_name: '', email: '', phone: '', password: '', role: '',
+    employee_id: '', designation: '', department: '', joining_date: '',
+  };
+  const [isAddEmpModalOpen, setIsAddEmpModalOpen] = useState(false);
+  const [addEmpForm, setAddEmpForm] = useState(emptyAddEmpForm);
+  const [addEmpFormError, setAddEmpFormError] = useState('');
+  const openAddEmployee = () => {
+    setAddEmpForm(emptyAddEmpForm);
+    setAddEmpFormError('');
+    setIsAddEmpModalOpen(true);
+  };
+  const handleAddEmployee = async (e) => {
+    e.preventDefault();
+    if (!addEmpForm.full_name.trim() || !addEmpForm.email.trim() || !addEmpForm.password || !addEmpForm.role || !addEmpForm.employee_id.trim() || !addEmpForm.designation.trim()) {
+      setAddEmpFormError('Full name, email, password, role, employee ID and designation are required.');
+      return;
+    }
+    try {
+      await createEmployeeWithUser({
+        ...addEmpForm,
+        department: addEmpForm.department || null,
+        joining_date: addEmpForm.joining_date || null,
+      });
+      showToast('Employee added successfully!');
+      setIsAddEmpModalOpen(false);
+      employeesRes.load();
+    } catch (err) {
+      setAddEmpFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not add this employee.');
+    }
+  };
 
   // ----------------------------------------------------
-  // 4. STATE: BATCHES
+  // 4. STATE: PROGRAMS & COURSES — real data: /api/v1/programs/
   // ----------------------------------------------------
-  const [batches, setBatches] = useState([
-    { code: 'BCA-2026-B1', program: 'BCA Final Year Project', timing: '09:30 AM - 11:30 AM', trainer: 'Naveen Kumar', room: 'Lab 1 (Sunkadakatte HQ)', count: 28, max: 30, status: 'Ongoing' },
-    { code: 'JAVA-2026-A', program: 'Full Stack Web Dev (JAVA/PYTHON)', timing: '11:45 AM - 01:45 PM', trainer: 'Harish Babu', room: 'Lab 2 (Cloud Suite)', count: 24, max: 25, status: 'Ongoing' },
-    { code: 'PY-2026-C', program: 'Python & AI / ML Track', timing: '02:30 PM - 04:30 PM', trainer: 'Sowmya M.', room: 'Lab 1 (Sunkadakatte HQ)', count: 22, max: 25, status: 'Ongoing' },
-    { code: 'MCA-2026-B', program: 'MCA Academic Project Lab', timing: '04:45 PM - 06:45 PM', trainer: 'Naveen Kumar', room: 'Lab 3 (Research Lab)', count: 18, max: 20, status: 'Ongoing' },
-    { code: 'JAVA-2026-D', program: 'Java Spring Boot Full Stack', timing: '10:00 AM - 12:00 PM (Weekend)', trainer: 'Harish Babu', room: 'Lab 2 (Cloud Suite)', count: 15, max: 20, status: 'Starting Next Week' }
-  ]);
+  const programsRes = useCrudResource(programsApi);
+  const programs = programsRes.items;
+  const emptyProgramForm = { code: '', title: '', program_type: 'COURSE', description: '', duration_weeks: 4, base_fee: 0 };
+  const [isProgramModalOpen, setIsProgramModalOpen] = useState(false);
+  const [editingProgramId, setEditingProgramId] = useState(null);
+  const [programForm, setProgramForm] = useState(emptyProgramForm);
+  const [programFormError, setProgramFormError] = useState('');
+  const openAddProgram = () => { setEditingProgramId(null); setProgramForm(emptyProgramForm); setProgramFormError(''); setIsProgramModalOpen(true); };
+  const openEditProgram = (prog) => {
+    setEditingProgramId(prog.id);
+    setProgramForm({ code: prog.code, title: prog.title, program_type: prog.program_type, description: prog.description || '', duration_weeks: prog.duration_weeks, base_fee: prog.base_fee });
+    setProgramFormError('');
+    setIsProgramModalOpen(true);
+  };
+  const handleSaveProgram = async (e) => {
+    e.preventDefault();
+    if (!programForm.title.trim() || !programForm.code.trim()) { setProgramFormError('Code and Title are required.'); return; }
+    try {
+      if (editingProgramId) { await programsApi.update(editingProgramId, programForm); showToast('Program updated successfully!'); }
+      else { await programsApi.create(programForm); showToast('Program created successfully!'); }
+      setIsProgramModalOpen(false);
+      programsRes.load();
+    } catch (err) {
+      setProgramFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not save this program.');
+    }
+  };
+  const handleDeleteProgram = async (id) => {
+    if (!window.confirm('Delete this program? This cannot be undone.')) return;
+    try { await programsApi.remove(id); showToast('Program removed'); programsRes.load(); }
+    catch (err) { showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not delete this program.', 'error'); }
+  };
 
   // ----------------------------------------------------
-  // 5. STATE: PROGRAMS & COURSES
+  // 5. STATE: BATCHES — real data: /api/v1/batches/ (business_id is
+  // server-generated, apps/core/models.py Batch.save())
   // ----------------------------------------------------
-  const [programs, setPrograms] = useState([
-    { id: 'PROG-01', title: 'BCA Final Year Academic Project Guidance', duration: '3 - 6 Months', fee: '₹6,500', category: 'Academic Degree', modules: 'SRS Doc, IEEE Coding, DB Schema, Viva Voce Prep' },
-    { id: 'PROG-02', title: 'MCA Enterprise Software Project Track', duration: '4 - 6 Months', fee: '₹9,500', category: 'Academic Post-Grad', modules: 'Architecture, Microservices, Cloud Deploy, Research Paper' },
-    { id: 'PROG-03', title: 'Full Stack Web Development (JAVA/PYTHON)', duration: '12 Weeks', fee: '₹14,000', category: 'Professional Certification', modules: 'Core Java, Spring Boot, Python, React, SQL, Git, CI/CD' },
-    { id: 'PROG-04', title: 'Python, Data Science & Machine Learning', duration: '10 Weeks', fee: '₹12,500', category: 'Professional Certification', modules: 'Core Python, Pandas, Scikit-Learn, Flask APIs, Live Models' },
-    { id: 'PROG-05', title: 'Java Full Stack & Spring Boot Enterprise', duration: '12 Weeks', fee: '₹14,500', category: 'Professional Certification', modules: 'Core Java, Spring Boot, Hibernate, MySQL, Angular/React' }
-  ]);
+  const batchesRes = useCrudResource(batchesApi);
+  const batches = batchesRes.items;
+  const emptyBatchForm = { name: '', program: '', institution: '', start_date: '', end_date: '', status: 'UPCOMING' };
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const [editingBatchId, setEditingBatchId] = useState(null);
+  const [batchForm, setBatchForm] = useState(emptyBatchForm);
+  const [batchFormError, setBatchFormError] = useState('');
+  const openAddBatch = () => { setEditingBatchId(null); setBatchForm(emptyBatchForm); setBatchFormError(''); setIsBatchModalOpen(true); };
+  const openEditBatch = (b) => {
+    setEditingBatchId(b.id);
+    setBatchForm({ name: b.name, program: b.program, institution: b.institution || '', start_date: b.start_date, end_date: b.end_date || '', status: b.status });
+    setBatchFormError('');
+    setIsBatchModalOpen(true);
+  };
+  const handleSaveBatch = async (e) => {
+    e.preventDefault();
+    if (!batchForm.name.trim() || !batchForm.program || !batchForm.start_date) { setBatchFormError('Name, Program, and Start Date are required.'); return; }
+    const payload = { ...batchForm, institution: batchForm.institution || null, end_date: batchForm.end_date || null };
+    try {
+      if (editingBatchId) { await batchesApi.update(editingBatchId, payload); showToast('Batch updated successfully!'); }
+      else { await batchesApi.create(payload); showToast('Batch created successfully!'); }
+      setIsBatchModalOpen(false);
+      batchesRes.load();
+    } catch (err) {
+      setBatchFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not save this batch.');
+    }
+  };
+  const handleDeleteBatch = async (id) => {
+    if (!window.confirm('Delete this batch? This cannot be undone.')) return;
+    try { await batchesApi.remove(id); showToast('Batch removed'); batchesRes.load(); }
+    catch (err) { showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not delete this batch.', 'error'); }
+  };
 
   // ----------------------------------------------------
-  // 6. STATE: PROJECTS
+  // 6. STATE: PROJECTS — real data: /api/v1/academics/projects/
+  // (AcademicProject — a reusable project template, not tied to one student)
   // ----------------------------------------------------
-  const [projects, setProjects] = useState([
-    { id: 'PRJ-101', title: 'AI-Driven Healthcare Disease Diagnostic System', student: 'Prajwal Gowda & Team', stack: 'Python, Flask, React, OpenCV', phase: 'Phase 3: Integration', mentor: 'Sowmya M.', status: 'In Progress' },
-    { id: 'PRJ-102', title: 'Smart College ERP & Automated Attendance Suite', student: 'Kavya R.', stack: 'React, Node.js, Express, MongoDB', phase: 'Phase 4: IEEE Doc', mentor: 'Harish Babu', status: 'Ready for Viva' },
-    { id: 'PRJ-103', title: 'Blockchain-Based Verifiable Academic Certificates', student: 'Sharath Kumar', stack: 'Solidity, Ethereum, Web3.js, React', phase: 'Completed', mentor: 'Naveen Kumar', status: 'Completed' },
-    { id: 'PRJ-104', title: 'IoT-Powered Industrial Asset Monitoring', student: 'Nithin V. & Team', stack: 'Node-RED, MQTT, Raspberry Pi, React', phase: 'Phase 2: DB Schema', mentor: 'Naveen Kumar', status: 'In Progress' },
-    { id: 'PRJ-105', title: 'E-Commerce Microservices Engine with Kafka', student: 'Divya Shree', stack: 'Java Spring Boot, Docker, React', phase: 'Phase 3: Integration', mentor: 'Harish Babu', status: 'In Progress' }
-  ]);
+  const projectsRes = useCrudResource(projectsApi);
+  const projects = projectsRes.items;
+  const emptyProjectForm = { code: '', title: '', domain: '', abstract: '', technologies: '', documentation_url: '', synopsis_url: '', is_available: true };
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState(null);
+  const [projectForm, setProjectForm] = useState(emptyProjectForm);
+  const [projectFormError, setProjectFormError] = useState('');
+  const openAddProject = () => { setEditingProjectId(null); setProjectForm(emptyProjectForm); setProjectFormError(''); setIsProjectModalOpen(true); };
+  const openEditProject = (p) => {
+    setEditingProjectId(p.id);
+    setProjectForm({ code: p.code, title: p.title, domain: p.domain, abstract: p.abstract || '', technologies: p.technologies || '', documentation_url: p.documentation_url || '', synopsis_url: p.synopsis_url || '', is_available: p.is_available });
+    setProjectFormError('');
+    setIsProjectModalOpen(true);
+  };
+  const handleSaveProject = async (e) => {
+    e.preventDefault();
+    if (!projectForm.title.trim() || !projectForm.code.trim()) { setProjectFormError('Code and Title are required.'); return; }
+    try {
+      if (editingProjectId) { await projectsApi.update(editingProjectId, projectForm); showToast('Project updated successfully!'); }
+      else { await projectsApi.create(projectForm); showToast('Project added successfully!'); }
+      setIsProjectModalOpen(false);
+      projectsRes.load();
+    } catch (err) {
+      setProjectFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not save this project.');
+    }
+  };
+  const handleDeleteProject = async (id) => {
+    if (!window.confirm('Delete this project? This cannot be undone.')) return;
+    try { await projectsApi.remove(id); showToast('Project removed'); projectsRes.load(); }
+    catch (err) { showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not delete this project.', 'error'); }
+  };
 
   // ----------------------------------------------------
-  // 7. STATE: FEES & TRANSACTIONS
+  // 7. STATE: FEES — real data: /api/v1/invoices/ + /api/v1/payments/
   // ----------------------------------------------------
-  const [transactions, setTransactions] = useState([
-    { receiptNo: 'REC-2026-901', student: 'Prajwal Gowda', program: 'BCA Final Year Project', amount: '₹6,500', mode: 'UPI / PhonePe', date: '2026-02-10', status: 'Success' },
-    { receiptNo: 'REC-2026-902', student: 'Kavya R.', program: 'Full Stack Web Dev (JAVA/PYTHON)', amount: '₹14,000', mode: 'Google Pay', date: '2026-02-15', status: 'Success' },
-    { receiptNo: 'REC-2026-903', student: 'Sharath Kumar', program: 'Python & AI Track', amount: '₹12,500', mode: 'Bank Transfer (NEFT)', date: '2026-01-20', status: 'Success' },
-    { receiptNo: 'REC-2026-904', student: 'Divya Shree', program: 'Java Spring Boot Full Stack', amount: '₹14,500', mode: 'UPI', date: '2026-02-28', status: 'Success' }
-  ]);
+  const invoicesRes = useCrudResource(invoicesApi);
+  const transactions = invoicesRes.items;
+  const emptyPaymentForm = { invoice: '', transaction_id: '', amount: '', payment_mode: 'UPI' };
+  const [isFeeModalOpen, setIsFeeModalOpen] = useState(false);
+  const [paymentForm, setPaymentForm] = useState(emptyPaymentForm);
+  const [paymentFormError, setPaymentFormError] = useState('');
+  const openRecordPayment = () => {
+    setPaymentForm({ ...emptyPaymentForm, transaction_id: `TXN-${Date.now()}` });
+    setPaymentFormError('');
+    setIsFeeModalOpen(true);
+  };
+  const handleRecordPayment = async (e) => {
+    e.preventDefault();
+    if (!paymentForm.invoice || !paymentForm.amount) { setPaymentFormError('Invoice and Amount are required.'); return; }
+    try {
+      await paymentsApi.create(paymentForm);
+      showToast('Payment recorded successfully!');
+      setIsFeeModalOpen(false);
+      invoicesRes.load();
+    } catch (err) {
+      setPaymentFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not record this payment.');
+    }
+  };
+  const handleDeleteInvoice = async (id) => {
+    if (!window.confirm('Delete this invoice? This cannot be undone.')) return;
+    try { await invoicesApi.remove(id); showToast('Invoice removed'); invoicesRes.load(); }
+    catch (err) { showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not delete this invoice.', 'error'); }
+  };
 
   // ----------------------------------------------------
-  // 8. STATE: CERTIFICATES
+  // 8. STATE: CERTIFICATES — real data: /api/v1/certificates/
+  // No plain create/delete: issuance runs the eligibility chain (Section 8)
+  // via a dedicated action, and removal is "Revoke" (QR stays live, status
+  // flips to REVOKED) rather than a hard delete — apps/finance/views.py.
   // ----------------------------------------------------
-  const [certificates, setCertificates] = useState([
-    { certId: 'GCS-2026-CERT-081', studentName: 'Sharath Kumar', program: 'Python & AI Machine Learning Track', date: '2026-02-25', grade: 'Grade A+ (Distinction)', verification: 'QR Code Verified' },
-    { certId: 'GCS-2026-CERT-082', studentName: 'Deepa Narayan', program: 'Full Stack Web Dev (JAVA/PYTHON)', date: '2026-02-18', grade: 'Grade A', verification: 'QR Code Verified' },
-    { certId: 'GCS-2026-CERT-083', studentName: 'Anil Kumar S.', program: 'BCA Final Year Degree Project Defense', date: '2026-01-30', grade: 'Grade A+', verification: 'QR Code Verified' }
-  ]);
+  const certificatesRes = useCrudResource(certificatesApi);
+  const certificates = certificatesRes.items;
+  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
+  const [certForm, setCertForm] = useState({ enrollment: '', title: 'Certificate of Completion' });
+  const [certFormError, setCertFormError] = useState('');
+  const handleIssueCertificate = async (e) => {
+    e.preventDefault();
+    if (!certForm.enrollment) { setCertFormError('Select an enrollment.'); return; }
+    try {
+      await issueCertificate(certForm.enrollment, certForm.title);
+      showToast('Certificate generation queued — it will appear here once processed.');
+      setIsCertModalOpen(false);
+      setTimeout(() => certificatesRes.load(), 2000);
+    } catch (err) {
+      setCertFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not issue this certificate.');
+    }
+  };
+  const handleRevokeCertificate = async (id) => {
+    const reason = window.prompt('Reason for revoking this certificate:');
+    if (!reason) return;
+    try { await revokeCertificate(id, reason); showToast('Certificate revoked'); certificatesRes.load(); }
+    catch (err) { showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not revoke this certificate.', 'error'); }
+  };
 
   // ----------------------------------------------------
   // 9. STATE: ATTENDANCE REGISTER
   // ----------------------------------------------------
-  const [selectedBatch, setSelectedBatch] = useState('BCA-2026-B1');
+  const [selectedBatch, setSelectedBatch] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [attendanceRecords, setAttendanceRecords] = useState({
     'GCS-2026-001': 'Present',
@@ -239,24 +473,81 @@ export const ErpDashboard = () => {
   });
 
   // ----------------------------------------------------
-  // 10. STATE: ASSESSMENTS / VIVA SCORES
+  // 10. STATE: ASSESSMENTS — real data: /api/v1/academics/assessments/
+  // (the exam/viva definitions — batch, type, max/passing marks; individual
+  // per-student marks are a separate AssessmentMark resource not wired here)
   // ----------------------------------------------------
-  const [assessments, setAssessments] = useState([
-    { studentId: 'GCS-2026-001', studentName: 'Prajwal Gowda', synopsis: 24, architecture: 23, coding: 22, viva: 24, total: 93, grade: 'A+' },
-    { studentId: 'GCS-2026-002', studentName: 'Kavya R.', synopsis: 22, architecture: 21, coding: 23, viva: 22, total: 88, grade: 'A' },
-    { studentId: 'GCS-2026-003', studentName: 'Sharath Kumar', synopsis: 25, architecture: 25, coding: 24, viva: 25, total: 99, grade: 'A+' },
-    { studentId: 'GCS-2026-004', studentName: 'Nithin V.', synopsis: 19, architecture: 18, coding: 20, viva: 19, total: 76, grade: 'B+' },
-    { studentId: 'GCS-2026-005', studentName: 'Divya Shree', synopsis: 23, architecture: 22, coding: 21, viva: 23, total: 89, grade: 'A' }
-  ]);
+  const assessmentsRes = useCrudResource(assessmentsApi);
+  const assessments = assessmentsRes.items;
+  const emptyAssessmentForm = { batch: '', title: '', assessment_type: 'QUIZ', max_marks: 100, passing_marks: 40, conducted_at: '' };
+  const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState(false);
+  const [editingAssessmentId, setEditingAssessmentId] = useState(null);
+  const [assessmentForm, setAssessmentForm] = useState(emptyAssessmentForm);
+  const [assessmentFormError, setAssessmentFormError] = useState('');
+  const openAddAssessment = () => { setEditingAssessmentId(null); setAssessmentForm(emptyAssessmentForm); setAssessmentFormError(''); setIsAssessmentModalOpen(true); };
+  const openEditAssessment = (a) => {
+    setEditingAssessmentId(a.id);
+    setAssessmentForm({ batch: a.batch, title: a.title, assessment_type: a.assessment_type, max_marks: a.max_marks, passing_marks: a.passing_marks, conducted_at: a.conducted_at ? a.conducted_at.slice(0, 16) : '' });
+    setAssessmentFormError('');
+    setIsAssessmentModalOpen(true);
+  };
+  const handleSaveAssessment = async (e) => {
+    e.preventDefault();
+    if (!assessmentForm.batch || !assessmentForm.title.trim()) { setAssessmentFormError('Batch and Title are required.'); return; }
+    try {
+      if (editingAssessmentId) { await assessmentsApi.update(editingAssessmentId, assessmentForm); showToast('Assessment updated successfully!'); }
+      else { await assessmentsApi.create(assessmentForm); showToast('Assessment created successfully!'); }
+      setIsAssessmentModalOpen(false);
+      assessmentsRes.load();
+    } catch (err) {
+      setAssessmentFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not save this assessment.');
+    }
+  };
+  const handleDeleteAssessment = async (id) => {
+    if (!window.confirm('Delete this assessment? This cannot be undone.')) return;
+    try { await assessmentsApi.remove(id); showToast('Assessment removed'); assessmentsRes.load(); }
+    catch (err) { showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not delete this assessment.', 'error'); }
+  };
 
   // ----------------------------------------------------
-  // 11. STATE: ENROLLMENTS APPROVAL QUEUE
+  // 11. STATE: ENROLLMENTS — real data: /api/v1/enrollments/
   // ----------------------------------------------------
-  const [enrollmentQueue, setEnrollmentQueue] = useState([
-    { id: 'ENR-101', name: 'Varun Gowda', college: 'Acharya Institute', program: 'JAVA Full Stack', contact: '9845112233', date: '2026-03-01', status: 'Pending Review' },
-    { id: 'ENR-102', name: 'Meghana Rao', college: 'Sunkadakatte Degree College', program: 'BCA Academic Project', contact: '9845112244', date: '2026-03-02', status: 'Pending Review' },
-    { id: 'ENR-103', name: 'Chethan Kumar', college: 'EWIT Bangalore', program: 'Python Data Science', contact: '9845112255', date: '2026-03-03', status: 'Approved' }
-  ]);
+  const enrollmentsRes = useCrudResource(enrollmentsApi);
+  const enrollmentQueue = enrollmentsRes.items;
+  const emptyEnrollmentForm = { student: '', program: '', batch: '', institution: '', status: 'APPLIED', coordinator_approval: false };
+  const [isEnrollmentModalOpen, setIsEnrollmentModalOpen] = useState(false);
+  const [enrollmentForm, setEnrollmentForm] = useState(emptyEnrollmentForm);
+  const [enrollmentFormError, setEnrollmentFormError] = useState('');
+  const openAddEnrollment = () => { setEnrollmentForm(emptyEnrollmentForm); setEnrollmentFormError(''); setIsEnrollmentModalOpen(true); };
+  const handleSaveEnrollment = async (e) => {
+    e.preventDefault();
+    if (!enrollmentForm.student || !enrollmentForm.program || !enrollmentForm.batch || !enrollmentForm.institution) {
+      setEnrollmentFormError('Student, Program, Batch, and Institution are all required.');
+      return;
+    }
+    try {
+      await enrollmentsApi.create(enrollmentForm);
+      showToast('Enrollment created successfully!');
+      setIsEnrollmentModalOpen(false);
+      enrollmentsRes.load();
+    } catch (err) {
+      setEnrollmentFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not create this enrollment.');
+    }
+  };
+  const handleApproveEnrollmentReal = async (enr) => {
+    try {
+      await enrollmentsApi.update(enr.id, { coordinator_approval: true, status: enr.status === 'APPLIED' ? 'ACTIVE' : enr.status });
+      showToast(`Enrollment ${enr.business_id} approved!`);
+      enrollmentsRes.load();
+    } catch (err) {
+      showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not approve this enrollment.', 'error');
+    }
+  };
+  const handleDeleteEnrollment = async (id) => {
+    if (!window.confirm('Delete this enrollment? This cannot be undone.')) return;
+    try { await enrollmentsApi.remove(id); showToast('Enrollment removed'); enrollmentsRes.load(); }
+    catch (err) { showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not delete this enrollment.', 'error'); }
+  };
 
   // ----------------------------------------------------
   // 12. STATE: SETTINGS
@@ -272,14 +563,10 @@ export const ErpDashboard = () => {
   });
 
   // ----------------------------------------------------
-  // MODAL STATES
+  // MODAL STATES (Fee/Cert/Project/Batch modal booleans declared earlier
+  // alongside their respective real-data blocks)
   // ----------------------------------------------------
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
-  const [isFeeModalOpen, setIsFeeModalOpen] = useState(false);
-  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
-  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
-  const [viewCertificateModal, setViewCertificateModal] = useState(null);
 
   // Add Photo Modal States
   const [isAddPhotoModalOpen, setIsAddPhotoModalOpen] = useState(false);
@@ -351,10 +638,6 @@ export const ErpDashboard = () => {
 
   // Form states
   const [newStudent, setNewStudent] = useState({ name: '', college: '', course: 'BCA Final Year Project', batch: 'BCA-2026-B1', phone: '', email: '', fee: 'Paid' });
-  const [newFee, setNewFee] = useState({ student: 'Prajwal Gowda', program: 'BCA Final Year Project', amount: '6500', mode: 'UPI' });
-  const [newCert, setNewCert] = useState({ studentName: '', program: 'BCA Final Year Project', grade: 'Grade A+ (Distinction)' });
-  const [newProject, setNewProject] = useState({ title: '', student: '', stack: 'React, Node.js, Express, MongoDB', mentor: 'Naveen Kumar' });
-  const [newBatch, setNewBatch] = useState({ code: '', program: 'BCA Final Year Project', timing: '09:30 AM - 11:30 AM', trainer: 'Naveen Kumar', room: 'Lab 1 (Sunkadakatte HQ)', max: 30 });
 
   // ----------------------------------------------------
   // HANDLERS
@@ -400,77 +683,31 @@ export const ErpDashboard = () => {
     }
   };
 
-  const handleRecordFee = (e) => {
-    e.preventDefault();
-    const receiptNo = `REC-2026-${Math.floor(100 + Math.random() * 900)}`;
-    const tx = {
-      receiptNo,
-      student: newFee.student,
-      program: newFee.program,
-      amount: `₹${Number(newFee.amount).toLocaleString()}`,
-      mode: newFee.mode,
-      date: new Date().toISOString().split('T')[0],
-      status: 'Success'
-    };
-    setTransactions([tx, ...transactions]);
-    setIsFeeModalOpen(false);
-    showToast(`Payment recorded! Receipt #${receiptNo} generated`);
+  // Edit a student's professional details (personal name/email/phone belong
+  // to the linked User account, not editable here).
+  const [isStudentEditModalOpen, setIsStudentEditModalOpen] = useState(false);
+  const [editingStudentId, setEditingStudentId] = useState(null);
+  const [studentEditForm, setStudentEditForm] = useState({ usn: '', degree: '', semester: '', branch: '', institution: '', is_active: true });
+  const [studentEditFormError, setStudentEditFormError] = useState('');
+  const openEditStudent = (std) => {
+    setEditingStudentId(std.id);
+    setStudentEditForm({
+      usn: std.usn || '', degree: std.degree || '', semester: std.semester || '',
+      branch: std.branch || '', institution: std.institution || '', is_active: std.is_active,
+    });
+    setStudentEditFormError('');
+    setIsStudentEditModalOpen(true);
   };
-
-  const handleIssueCertificate = (e) => {
+  const handleSaveStudentEdit = async (e) => {
     e.preventDefault();
-    if (!newCert.studentName) {
-      showToast('Please specify the recipient student name', 'error');
-      return;
+    try {
+      await studentsApi.update(editingStudentId, studentEditForm);
+      showToast('Student updated successfully!');
+      setIsStudentEditModalOpen(false);
+      loadStudents();
+    } catch (err) {
+      setStudentEditFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not save this student.');
     }
-    const certId = `GCS-2026-CERT-${Math.floor(100 + Math.random() * 900)}`;
-    const cert = {
-      certId,
-      studentName: newCert.studentName,
-      program: newCert.program,
-      date: new Date().toISOString().split('T')[0],
-      grade: newCert.grade,
-      verification: 'QR Code Verified'
-    };
-    setCertificates([cert, ...certificates]);
-    setIsCertModalOpen(false);
-    setNewCert({ studentName: '', program: 'BCA Final Year Project', grade: 'Grade A+ (Distinction)' });
-    showToast(`Certificate ${certId} issued successfully!`);
-  };
-
-  const handleAddProject = (e) => {
-    e.preventDefault();
-    if (!newProject.title || !newProject.student) {
-      showToast('Please fill all project details', 'error');
-      return;
-    }
-    const prjId = `PRJ-${Math.floor(100 + Math.random() * 900)}`;
-    const prj = {
-      id: prjId,
-      title: newProject.title,
-      student: newProject.student,
-      stack: newProject.stack,
-      mentor: newProject.mentor,
-      phase: 'Phase 1: Synopsis',
-      status: 'In Progress'
-    };
-    setProjects([prj, ...projects]);
-    setIsProjectModalOpen(false);
-    setNewProject({ title: '', student: '', stack: 'React, Node.js, Express, MongoDB', mentor: 'Naveen Kumar' });
-    showToast(`Project "${prj.title}" created and assigned!`);
-  };
-
-  const handleCreateBatch = (e) => {
-    e.preventDefault();
-    if (!newBatch.code) {
-      showToast('Please provide a batch code', 'error');
-      return;
-    }
-    const b = { ...newBatch, count: 0, status: 'Coming Soon' };
-    setBatches([...batches, b]);
-    setIsBatchModalOpen(false);
-    setNewBatch({ code: '', program: 'BCA Final Year Project', timing: '09:30 AM - 11:30 AM', trainer: 'Naveen Kumar', room: 'Lab 1 (Sunkadakatte HQ)', max: 30 });
-    showToast(`Batch ${b.code} created successfully!`);
   };
 
   const handleAttendanceChange = (studentId, status) => {
@@ -484,16 +721,122 @@ export const ErpDashboard = () => {
     showToast(`Attendance saved & locked for batch ${selectedBatch} on ${selectedDate}!`);
   };
 
-  const handleApproveEnrollment = (id) => {
-    setEnrollmentQueue(enrollmentQueue.map(item => item.id === id ? { ...item, status: 'Approved' } : item));
-    showToast(`Application ${id} approved!`);
+  // ----------------------------------------------------
+  // WEBSITE CONTENT (CMS) — real data: GET/POST/PATCH/DELETE
+  // /api/v1/content/ (apps/website/views.py SiteContentViewSet, IsERPStaff
+  // for writes). One endpoint backs every editable marketing-site section —
+  // Partner Colleges, Recognitions, About/Owners, Impact Stats, Events,
+  // Services, Internships, Testimonials — see CONTENT_SECTIONS.
+  // ----------------------------------------------------
+  const emptyContentForm = {
+    section: CONTENT_SECTIONS[0].value,
+    title: '', subtitle: '', description: '', image_url: '', link_url: '',
+    location: '', event_start: '', event_end: '', display_order: 0, is_active: true,
+    extra: '{}',
+  };
+  const [contentSection, setContentSection] = useState(CONTENT_SECTIONS[0].value);
+  const [siteContentItems, setSiteContentItems] = useState([]);
+  const [siteContentTotal, setSiteContentTotal] = useState(0);
+  const [siteContentLoading, setSiteContentLoading] = useState(true);
+  const [siteContentError, setSiteContentError] = useState('');
+  const [isContentModalOpen, setIsContentModalOpen] = useState(false);
+  const [editingContentId, setEditingContentId] = useState(null);
+  const [contentForm, setContentForm] = useState(emptyContentForm);
+  const [contentFormError, setContentFormError] = useState('');
+
+  const loadSiteContent = useCallback((section) => {
+    setSiteContentLoading(true);
+    setSiteContentError('');
+    siteContentApi.bySection(section)
+      .then((data) => {
+        setSiteContentItems(data.results);
+        setSiteContentTotal(data.count);
+      })
+      .catch((err) => setSiteContentError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not load content.'))
+      .finally(() => setSiteContentLoading(false));
+  }, []);
+
+  useEffect(() => { loadSiteContent(contentSection); }, [contentSection, loadSiteContent]);
+
+  const openAddContent = () => {
+    setEditingContentId(null);
+    setContentForm({ ...emptyContentForm, section: contentSection });
+    setContentFormError('');
+    setIsContentModalOpen(true);
+  };
+
+  const openEditContent = (item) => {
+    setEditingContentId(item.id);
+    setContentForm({
+      section: item.section,
+      title: item.title || '',
+      subtitle: item.subtitle || '',
+      description: item.description || '',
+      image_url: item.image_url || '',
+      link_url: item.link_url || '',
+      location: item.location || '',
+      event_start: item.event_start ? item.event_start.slice(0, 16) : '',
+      event_end: item.event_end ? item.event_end.slice(0, 16) : '',
+      display_order: item.display_order ?? 0,
+      is_active: item.is_active,
+      extra: JSON.stringify(item.extra || {}, null, 2),
+    });
+    setContentFormError('');
+    setIsContentModalOpen(true);
+  };
+
+  const handleSaveContent = async (e) => {
+    e.preventDefault();
+    if (!contentForm.title.trim()) {
+      setContentFormError('Title is required.');
+      return;
+    }
+    let extraParsed;
+    try {
+      extraParsed = contentForm.extra.trim() ? JSON.parse(contentForm.extra) : {};
+    } catch {
+      setContentFormError('Extra fields must be valid JSON (e.g. {"features": ["a", "b"]}).');
+      return;
+    }
+    const payload = {
+      ...contentForm,
+      event_start: contentForm.event_start || null,
+      event_end: contentForm.event_end || null,
+      extra: extraParsed,
+    };
+    try {
+      if (editingContentId) {
+        await siteContentApi.update(editingContentId, payload);
+        showToast('Content updated successfully!');
+      } else {
+        await siteContentApi.create(payload);
+        showToast('Content added successfully!');
+      }
+      setIsContentModalOpen(false);
+      loadSiteContent(contentSection);
+    } catch (err) {
+      setContentFormError(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not save this item.');
+    }
+  };
+
+  const handleDeleteContent = async (id) => {
+    if (!window.confirm('Delete this content item? This cannot be undone.')) return;
+    try {
+      await siteContentApi.remove(id);
+      showToast('Content item removed');
+      loadSiteContent(contentSection);
+    } catch (err) {
+      showToast(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Could not delete this item.', 'error');
+    }
   };
 
   const sidebarItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
     { name: 'Students', icon: Users, count: studentsTotal },
     { name: 'Institutions', icon: Building2, count: institutions.length },
-    { name: 'Employees', icon: UserCheck, count: employees.length },
+    // Employee directory is Full-access-tier only — Medium-access roles
+    // (Trainer, Accounts, ...) never see it in the sidebar at all.
+    ...(perms.canAccessEmployees ? [{ name: 'Employees', icon: UserCheck, count: employees.length }] : []),
     { name: 'Programs', icon: BookOpen, count: programs.length },
     { name: 'Batches', icon: Layers, count: batches.length },
     { name: 'Enrollments', icon: UserPlus, count: enrollmentQueue.filter(e => e.status === 'Pending Review').length },
@@ -503,6 +846,7 @@ export const ErpDashboard = () => {
     { name: 'Fees', icon: DollarSign, count: transactions.length },
     { name: 'Certificates', icon: Award, count: certificates.length },
     { name: 'Gallery', icon: Image, count: galleryPhotos.length },
+    { name: 'Content', icon: Layout },
     { name: 'Settings', icon: Settings },
   ];
 
@@ -700,50 +1044,60 @@ export const ErpDashboard = () => {
                 <Sparkles className="w-4 h-4" /> Quick Admin Operations
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <button
-                  onClick={() => setIsEnrollModalOpen(true)}
-                  className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 hover:border-[#D4A72C] text-left transition-all group cursor-pointer"
-                >
-                  <UserPlus className="w-5 h-5 text-[#D4A72C] mb-1 group-hover:scale-110 transition-transform" />
-                  <p className="text-xs font-bold text-white">Enroll Student</p>
-                  <p className="text-[10px] text-gray-400">Generate ID & Batch</p>
-                </button>
+                {perms.canWriteCore && (
+                  <button
+                    onClick={() => setIsEnrollModalOpen(true)}
+                    className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 hover:border-[#D4A72C] text-left transition-all group cursor-pointer"
+                  >
+                    <UserPlus className="w-5 h-5 text-[#D4A72C] mb-1 group-hover:scale-110 transition-transform" />
+                    <p className="text-xs font-bold text-white">Enroll Student</p>
+                    <p className="text-[10px] text-gray-400">Generate ID & Batch</p>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setIsFeeModalOpen(true)}
-                  className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 hover:border-emerald-500 text-left transition-all group cursor-pointer"
-                >
-                  <DollarSign className="w-5 h-5 text-emerald-400 mb-1 group-hover:scale-110 transition-transform" />
-                  <p className="text-xs font-bold text-white">Record Payment</p>
-                  <p className="text-[10px] text-gray-400">Print UPI / Cash Receipt</p>
-                </button>
+                {perms.canWriteFinance && (
+                  <button
+                    onClick={openRecordPayment}
+                    className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 hover:border-emerald-500 text-left transition-all group cursor-pointer"
+                  >
+                    <DollarSign className="w-5 h-5 text-emerald-400 mb-1 group-hover:scale-110 transition-transform" />
+                    <p className="text-xs font-bold text-white">Record Payment</p>
+                    <p className="text-[10px] text-gray-400">Against an existing invoice</p>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setIsCertModalOpen(true)}
-                  className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 hover:border-blue-500 text-left transition-all group cursor-pointer"
-                >
-                  <Award className="w-5 h-5 text-blue-400 mb-1 group-hover:scale-110 transition-transform" />
-                  <p className="text-xs font-bold text-white">Issue Certificate</p>
-                  <p className="text-[10px] text-gray-400">QR Code Verification</p>
-                </button>
+                {perms.canWriteFinance && (
+                  <button
+                    onClick={() => { setCertForm({ enrollment: '', title: 'Certificate of Completion' }); setCertFormError(''); setIsCertModalOpen(true); }}
+                    className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 hover:border-blue-500 text-left transition-all group cursor-pointer"
+                  >
+                    <Award className="w-5 h-5 text-blue-400 mb-1 group-hover:scale-110 transition-transform" />
+                    <p className="text-xs font-bold text-white">Issue Certificate</p>
+                    <p className="text-[10px] text-gray-400">QR Code Verification</p>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setIsProjectModalOpen(true)}
-                  className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 hover:border-purple-500 text-left transition-all group cursor-pointer"
-                >
-                  <FolderGit2 className="w-5 h-5 text-purple-400 mb-1 group-hover:scale-110 transition-transform" />
-                  <p className="text-xs font-bold text-white">Assign Project</p>
-                  <p className="text-[10px] text-gray-400">IEEE Title & Mentor</p>
-                </button>
+                {perms.canWriteCore && (
+                  <button
+                    onClick={openAddProject}
+                    className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 hover:border-purple-500 text-left transition-all group cursor-pointer"
+                  >
+                    <FolderGit2 className="w-5 h-5 text-purple-400 mb-1 group-hover:scale-110 transition-transform" />
+                    <p className="text-xs font-bold text-white">Add Project</p>
+                    <p className="text-[10px] text-gray-400">Catalog a new project template</p>
+                  </button>
+                )}
 
-                <button
-                  onClick={() => setIsBatchModalOpen(true)}
-                  className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 hover:border-cyan-500 text-left transition-all group cursor-pointer"
-                >
-                  <Layers className="w-5 h-5 text-cyan-400 mb-1 group-hover:scale-110 transition-transform" />
-                  <p className="text-xs font-bold text-white">Create Batch</p>
-                  <p className="text-[10px] text-gray-400">Slot & Room Schedule</p>
-                </button>
+                {perms.canWriteCore && (
+                  <button
+                    onClick={openAddBatch}
+                    className="p-3.5 rounded-xl bg-gray-900 border border-gray-800 hover:border-cyan-500 text-left transition-all group cursor-pointer"
+                  >
+                    <Layers className="w-5 h-5 text-cyan-400 mb-1 group-hover:scale-110 transition-transform" />
+                    <p className="text-xs font-bold text-white">Create Batch</p>
+                    <p className="text-[10px] text-gray-400">Slot & Room Schedule</p>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -911,6 +1265,13 @@ export const ErpDashboard = () => {
                               <Eye className="w-3.5 h-3.5" />
                             </button>
                             <button
+                              onClick={() => openEditStudent(std)}
+                              className="p-1.5 rounded bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-[#D4A72C] border border-gray-800 cursor-pointer"
+                              title="Edit Student"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
                               onClick={() => handleDeleteStudent(std.id)}
                               className="p-1.5 rounded bg-red-950/40 hover:bg-red-900 text-red-400 border border-red-800 cursor-pointer"
                               title="Delete Student"
@@ -939,52 +1300,54 @@ export const ErpDashboard = () => {
                 <h3 className="font-bold text-white text-sm">Partner Colleges & Institutional Network</h3>
                 <p className="text-xs text-gray-400">Signed MoUs & Academic Project Collaboration Centers</p>
               </div>
-              <button
-                onClick={() => {
-                  const name = prompt('Enter Partner College / Institution Name:');
-                  if (name) {
-                    const loc = prompt('Enter Location (e.g. Bangalore North):') || 'Bangalore';
-                    setInstitutions([...institutions, {
-                      id: institutions.length + 1,
-                      name,
-                      location: loc,
-                      type: 'Academic Partner',
-                      mouStatus: 'Active',
-                      students: 0,
-                      contact: 'Coordinator'
-                    }]);
-                    showToast(`Institution "${name}" added to ERP!`);
-                  }
-                }}
-                className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Institution</span>
-              </button>
+              {perms.canWriteCore && (
+                <button
+                  onClick={openAddInstitution}
+                  className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Institution</span>
+                </button>
+              )}
             </div>
 
+            {institutionsRes.loading ? (
+              <p className="text-xs text-gray-400 py-10 text-center">Loading…</p>
+            ) : institutionsRes.error ? (
+              <p className="text-xs text-red-400 py-10 text-center">{institutionsRes.error}</p>
+            ) : institutions.length === 0 ? (
+              <p className="text-xs text-gray-400 py-10 text-center">No institutions yet{perms.canWriteCore ? ' — click "Add Institution".' : '.'}</p>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {institutions.map((inst) => (
                 <div key={inst.id} className="bg-[#222326] p-5 rounded-2xl border border-gray-800 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-[#D4A72C]/20 text-[#D4A72C] border border-[#D4A72C]/30">
-                      {inst.type}
+                    <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-[#D4A72C]/20 text-[#D4A72C] border border-[#D4A72C]/30">
+                      {inst.code}
                     </span>
-                    <span className="text-xs text-emerald-400 flex items-center gap-1 font-semibold">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> MoU {inst.mouStatus}
-                    </span>
+                    {perms.canWriteCore && (
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => openEditInstitution(inst)} className="p-1 rounded bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-[#D4A72C] border border-gray-800 cursor-pointer" title="Edit">
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDeleteInstitution(inst.id)} className="p-1 rounded bg-red-950/40 hover:bg-red-900 text-red-400 border border-red-800 cursor-pointer" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <h4 className="font-bold text-white text-sm">{inst.name}</h4>
                   <p className="text-xs text-gray-400 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-[#D4A72C]" /> {inst.location}
+                    <MapPin className="w-3.5 h-3.5 text-[#D4A72C]" /> {inst.city || '—'}{inst.state ? `, ${inst.state}` : ''}
                   </p>
-                  <div className="pt-3 border-t border-gray-800 flex justify-between items-center text-xs text-gray-300">
-                    <span>Contact: {inst.contact}</span>
-                    <span className="font-bold text-[#D4A72C]">{inst.students} Students</span>
+                  <div className="pt-3 border-t border-gray-800 text-xs text-gray-300">
+                    <p>{inst.contact_email || 'No contact email on file'}</p>
+                    <p className="text-gray-500">{inst.contact_phone || ''}</p>
                   </div>
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -998,61 +1361,68 @@ export const ErpDashboard = () => {
                 <h3 className="font-bold text-white text-sm">GCS Staff & Technical Mentors</h3>
                 <p className="text-xs text-gray-400">Software Architects, Project Guides, and Operations Team</p>
               </div>
-              <button
-                onClick={() => {
-                  const name = prompt('Employee Name:');
-                  if (name) {
-                    const role = prompt('Role (e.g. Senior Tech Guide):') || 'Tech Trainer';
-                    const dept = prompt('Department:') || 'Training';
-                    setEmployees([...employees, {
-                      id: `EMP-0${employees.length + 1}`,
-                      name,
-                      role,
-                      dept,
-                      email: `${name.toLowerCase().replace(/\s+/g, '')}@gnanacomputech.com`,
-                      phone: '9880198800',
-                      status: 'Active'
-                    }]);
-                    showToast(`Employee "${name}" added to ERP roster`);
-                  }
-                }}
-                className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Employee</span>
-              </button>
+              {perms.canCreateEmployee && (
+                <button
+                  onClick={openAddEmployee}
+                  className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Employee</span>
+                </button>
+              )}
             </div>
 
+            {employeesRes.loading ? (
+              <p className="text-xs text-gray-400 py-10 text-center">Loading…</p>
+            ) : employeesRes.error ? (
+              <p className="text-xs text-red-400 py-10 text-center">{employeesRes.error}</p>
+            ) : employees.length === 0 ? (
+              <p className="text-xs text-gray-400 py-10 text-center">No employee records yet.</p>
+            ) : (
             <div className="bg-[#222326] rounded-2xl border border-gray-800 overflow-hidden">
               <table className="w-full text-left text-xs text-gray-300">
                 <thead className="bg-gray-900 text-gray-400 uppercase font-bold border-b border-gray-800">
                   <tr>
                     <th className="p-3.5">Emp ID</th>
                     <th className="p-3.5">Name</th>
-                    <th className="p-3.5">Role</th>
+                    <th className="p-3.5">Designation</th>
                     <th className="p-3.5">Department</th>
                     <th className="p-3.5">Contact</th>
                     <th className="p-3.5">Status</th>
+                    <th className="p-3.5">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {employees.map((emp) => (
                     <tr key={emp.id} className="hover:bg-gray-800/40 transition-colors">
-                      <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{emp.id}</td>
-                      <td className="p-3.5 font-bold text-white">{emp.name}</td>
-                      <td className="p-3.5 text-gray-300">{emp.role}</td>
-                      <td className="p-3.5 text-gray-400">{emp.dept}</td>
-                      <td className="p-3.5 text-gray-400">{emp.phone} • {emp.email}</td>
+                      <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{emp.employee_id}</td>
+                      <td className="p-3.5 font-bold text-white">{emp.user_details?.full_name}</td>
+                      <td className="p-3.5 text-gray-300">{emp.designation}</td>
+                      <td className="p-3.5 text-gray-400">{emp.department_name || '—'}</td>
+                      <td className="p-3.5 text-gray-400">{emp.user_details?.phone} • {emp.user_details?.email}</td>
                       <td className="p-3.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
-                          {emp.status}
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                          emp.is_active ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-gray-800 text-gray-400 border-gray-700'
+                        }`}>
+                          {emp.is_active ? 'Active' : 'Inactive'}
                         </span>
+                      </td>
+                      <td className="p-3.5">
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => openEditEmployee(emp)} className="p-1 rounded bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-[#D4A72C] border border-gray-800 cursor-pointer" title="Edit">
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteEmployee(emp.id)} className="p-1 rounded bg-red-950/40 hover:bg-red-900 text-red-400 border border-red-800 cursor-pointer" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         )}
 
@@ -1066,50 +1436,55 @@ export const ErpDashboard = () => {
                 <h3 className="font-bold text-white text-sm">Academic & Professional Programs</h3>
                 <p className="text-xs text-gray-400">Curricula aligned with BCA, MCA, and Engineering Standards</p>
               </div>
-              <button
-                onClick={() => {
-                  const title = prompt('Program Title:');
-                  if (title) {
-                    const fee = prompt('Fee (e.g. ₹8,000):') || '₹8,000';
-                    const dur = prompt('Duration (e.g. 10 Weeks):') || '10 Weeks';
-                    setPrograms([...programs, {
-                      id: `PROG-0${programs.length + 1}`,
-                      title,
-                      duration: dur,
-                      fee,
-                      category: 'Professional Track',
-                      modules: 'Theory, Practical Labs, Live Project'
-                    }]);
-                    showToast(`Program "${title}" created`);
-                  }
-                }}
-                className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Program</span>
-              </button>
+              {perms.canWriteCore && (
+                <button
+                  onClick={openAddProgram}
+                  className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Program</span>
+                </button>
+              )}
             </div>
 
+            {programsRes.loading ? (
+              <p className="text-xs text-gray-400 py-10 text-center">Loading…</p>
+            ) : programsRes.error ? (
+              <p className="text-xs text-red-400 py-10 text-center">{programsRes.error}</p>
+            ) : programs.length === 0 ? (
+              <p className="text-xs text-gray-400 py-10 text-center">No programs yet{perms.canWriteCore ? ' — click "Add Program".' : '.'}</p>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {programs.map((prog) => (
                 <div key={prog.id} className="bg-[#222326] p-5 rounded-2xl border border-gray-800 space-y-3 flex flex-col justify-between">
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-[#D4A72C]/20 text-[#D4A72C]">
-                        {prog.category}
+                        {prog.program_type.replace(/_/g, ' ')}
                       </span>
-                      <span className="text-xs font-bold text-emerald-400">{prog.fee}</span>
+                      <span className="text-xs font-bold text-emerald-400">₹{Number(prog.base_fee).toLocaleString()}</span>
                     </div>
                     <h4 className="font-bold text-white text-sm mb-1">{prog.title}</h4>
-                    <p className="text-xs text-gray-400">Duration: {prog.duration}</p>
-                    <p className="text-xs text-gray-500 mt-2 line-clamp-2">Modules: {prog.modules}</p>
+                    <p className="text-xs text-gray-400">Duration: {prog.duration_weeks} weeks</p>
+                    {prog.description && <p className="text-xs text-gray-500 mt-2 line-clamp-2">{prog.description}</p>}
                   </div>
-                  <div className="pt-3 border-t border-gray-800 text-[11px] text-gray-400">
-                    ID: <span className="font-mono text-[#D4A72C]">{prog.id}</span>
+                  <div className="pt-3 border-t border-gray-800 flex items-center justify-between text-[11px] text-gray-400">
+                    <span>Code: <span className="font-mono text-[#D4A72C]">{prog.code}</span></span>
+                    {perms.canWriteCore && (
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => openEditProgram(prog)} className="p-1 rounded bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-[#D4A72C] border border-gray-800 cursor-pointer" title="Edit">
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDeleteProgram(prog.id)} className="p-1 rounded bg-red-950/40 hover:bg-red-900 text-red-400 border border-red-800 cursor-pointer" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -1123,37 +1498,53 @@ export const ErpDashboard = () => {
                 <h3 className="font-bold text-white text-sm">Active Lab & Classroom Batches</h3>
                 <p className="text-xs text-gray-400">Timing schedules and trainer allocations at Sunkadakatte HQ</p>
               </div>
-              <button
-                onClick={() => setIsBatchModalOpen(true)}
-                className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Create Batch</span>
-              </button>
+              {perms.canWriteCore && (
+                <button
+                  onClick={openAddBatch}
+                  className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Batch</span>
+                </button>
+              )}
             </div>
 
+            {batchesRes.loading ? (
+              <p className="text-xs text-gray-400 py-10 text-center">Loading…</p>
+            ) : batchesRes.error ? (
+              <p className="text-xs text-red-400 py-10 text-center">{batchesRes.error}</p>
+            ) : batches.length === 0 ? (
+              <p className="text-xs text-gray-400 py-10 text-center">No batches yet{perms.canWriteCore ? ' — click "Create Batch".' : '.'}</p>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {batches.map((b) => (
-                <div key={b.code} className="bg-[#222326] p-5 rounded-2xl border border-gray-800 space-y-3">
+                <div key={b.id} className="bg-[#222326] p-5 rounded-2xl border border-gray-800 space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="font-mono font-bold text-sm text-[#D4A72C]">{b.code}</span>
+                    <span className="font-mono font-bold text-sm text-[#D4A72C]">{b.business_id}</span>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
                       {b.status}
                     </span>
                   </div>
-                  <h4 className="font-bold text-white text-sm">{b.program}</h4>
+                  <h4 className="font-bold text-white text-sm">{b.name}</h4>
                   <div className="space-y-1 text-xs text-gray-400">
-                    <p>🕒 Timing: <span className="text-white">{b.timing}</span></p>
-                    <p>👨‍🏫 Trainer: <span className="text-white">{b.trainer}</span></p>
-                    <p>🏢 Location: <span className="text-white">{b.room}</span></p>
+                    <p>📘 Program: <span className="text-white">{b.program_title}</span></p>
+                    <p>🏢 Institution: <span className="text-white">{b.institution_name || '—'}</span></p>
+                    <p>📅 {b.start_date}{b.end_date ? ` → ${b.end_date}` : ''}</p>
                   </div>
-                  <div className="pt-3 border-t border-gray-800 flex justify-between text-xs">
-                    <span className="text-gray-400">Enrollment:</span>
-                    <span className="font-bold text-white">{b.count} / {b.max} Students</span>
-                  </div>
+                  {perms.canWriteCore && (
+                    <div className="pt-3 border-t border-gray-800 flex items-center justify-end gap-1.5">
+                      <button onClick={() => openEditBatch(b)} className="p-1 rounded bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-[#D4A72C] border border-gray-800 cursor-pointer" title="Edit">
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDeleteBatch(b.id)} className="p-1 rounded bg-red-950/40 hover:bg-red-900 text-red-400 border border-red-800 cursor-pointer" title="Delete">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -1162,21 +1553,38 @@ export const ErpDashboard = () => {
         {/* ---------------------------------------------------- */}
         {activeTab === 'Enrollments' && (
           <div className="space-y-6">
-            <div className="bg-[#222326] p-4 rounded-2xl border border-gray-800">
-              <h3 className="font-bold text-white text-sm">Pending Online Admissions & Registrations</h3>
-              <p className="text-xs text-gray-400">Review student applications received through the public website portal</p>
+            <div className="flex justify-between items-center bg-[#222326] p-4 rounded-2xl border border-gray-800">
+              <div>
+                <h3 className="font-bold text-white text-sm">Enrollments</h3>
+                <p className="text-xs text-gray-400">The core record linking student, program, batch & institution — approve pending applications or add one directly</p>
+              </div>
+              {perms.canWriteCore && (
+                <button
+                  onClick={openAddEnrollment}
+                  className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>New Enrollment</span>
+                </button>
+              )}
             </div>
 
+            {enrollmentsRes.loading ? (
+              <p className="text-xs text-gray-400 py-10 text-center">Loading…</p>
+            ) : enrollmentsRes.error ? (
+              <p className="text-xs text-red-400 py-10 text-center">{enrollmentsRes.error}</p>
+            ) : enrollmentQueue.length === 0 ? (
+              <p className="text-xs text-gray-400 py-10 text-center">No enrollments yet.</p>
+            ) : (
             <div className="bg-[#222326] rounded-2xl border border-gray-800 overflow-hidden">
               <table className="w-full text-left text-xs text-gray-300">
                 <thead className="bg-gray-900 text-gray-400 uppercase font-bold border-b border-gray-800">
                   <tr>
-                    <th className="p-3.5">App ID</th>
-                    <th className="p-3.5">Applicant Name</th>
-                    <th className="p-3.5">College</th>
-                    <th className="p-3.5">Selected Program</th>
-                    <th className="p-3.5">Contact</th>
-                    <th className="p-3.5">Application Date</th>
+                    <th className="p-3.5">Enrollment ID</th>
+                    <th className="p-3.5">Student</th>
+                    <th className="p-3.5">Institution</th>
+                    <th className="p-3.5">Program</th>
+                    <th className="p-3.5">Batch</th>
                     <th className="p-3.5">Status</th>
                     <th className="p-3.5">Action</th>
                   </tr>
@@ -1184,31 +1592,33 @@ export const ErpDashboard = () => {
                 <tbody className="divide-y divide-gray-800">
                   {enrollmentQueue.map((enr) => (
                     <tr key={enr.id} className="hover:bg-gray-800/40 transition-colors">
-                      <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{enr.id}</td>
-                      <td className="p-3.5 font-bold text-white">{enr.name}</td>
-                      <td className="p-3.5 text-gray-300">{enr.college}</td>
-                      <td className="p-3.5">{enr.program}</td>
-                      <td className="p-3.5 text-gray-400">{enr.contact}</td>
-                      <td className="p-3.5 text-gray-400">{enr.date}</td>
+                      <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{enr.business_id}</td>
+                      <td className="p-3.5 font-bold text-white">{enr.student_name}</td>
+                      <td className="p-3.5 text-gray-300">{enr.institution_name}</td>
+                      <td className="p-3.5">{enr.program_title}</td>
+                      <td className="p-3.5 text-gray-400">{enr.batch_name}</td>
                       <td className="p-3.5">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                          enr.status === 'Approved' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-amber-950 text-amber-400 border-amber-800'
+                          enr.coordinator_approval ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-amber-950 text-amber-400 border-amber-800'
                         }`}>
-                          {enr.status}
+                          {enr.status}{enr.coordinator_approval ? '' : ' • Pending Approval'}
                         </span>
                       </td>
                       <td className="p-3.5">
-                        {enr.status !== 'Approved' ? (
-                          <button
-                            onClick={() => handleApproveEnrollment(enr.id)}
-                            className="px-3 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11px] cursor-pointer"
-                          >
-                            Approve
-                          </button>
-                        ) : (
-                          <span className="text-emerald-400 font-bold text-xs flex items-center gap-1">
-                            <Check className="w-3.5 h-3.5" /> Enrolled
-                          </span>
+                        {perms.canWriteCore && (
+                          <div className="flex items-center gap-1.5">
+                            {!enr.coordinator_approval && (
+                              <button
+                                onClick={() => handleApproveEnrollmentReal(enr)}
+                                className="px-3 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-[11px] cursor-pointer"
+                              >
+                                Approve
+                              </button>
+                            )}
+                            <button onClick={() => handleDeleteEnrollment(enr.id)} className="p-1.5 rounded bg-red-950/40 hover:bg-red-900 text-red-400 border border-red-800 cursor-pointer" title="Delete">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -1216,6 +1626,7 @@ export const ErpDashboard = () => {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         )}
 
@@ -1239,7 +1650,7 @@ export const ErpDashboard = () => {
                     className="bg-gray-900 border border-gray-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#D4A72C]"
                   >
                     {batches.map(b => (
-                      <option key={b.code} value={b.code}>{b.code} ({b.program})</option>
+                      <option key={b.id} value={b.business_id}>{b.business_id} ({b.program_title})</option>
                     ))}
                   </select>
                 </div>
@@ -1336,68 +1747,69 @@ export const ErpDashboard = () => {
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-[#222326] p-4 rounded-2xl border border-gray-800">
               <div>
-                <h3 className="font-bold text-white text-sm">Student Viva-Voce & Project Evaluation Scores</h3>
-                <p className="text-xs text-gray-400">IEEE compliance, system design, coding defense, and viva readiness marks</p>
+                <h3 className="font-bold text-white text-sm">Assessments & Viva Definitions</h3>
+                <p className="text-xs text-gray-400">Quizzes, exams, and viva defenses scheduled per batch — per-student marks are entered separately once conducted</p>
               </div>
-              <button
-                onClick={() => {
-                  const studentName = prompt('Student Name:');
-                  if (studentName) {
-                    const total = prompt('Total Viva Marks (/100):') || '85';
-                    setAssessments([...assessments, {
-                      studentId: `GCS-2026-00${assessments.length + 1}`,
-                      studentName,
-                      synopsis: 22,
-                      architecture: 22,
-                      coding: 22,
-                      viva: 22,
-                      total: Number(total),
-                      grade: Number(total) >= 90 ? 'A+' : 'A'
-                    }]);
-                    showToast(`Assessment recorded for ${studentName}`);
-                  }
-                }}
-                className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Assessment</span>
-              </button>
+              {perms.canWriteAssessments && (
+                <button
+                  onClick={openAddAssessment}
+                  className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Assessment</span>
+                </button>
+              )}
             </div>
 
+            {assessmentsRes.loading ? (
+              <p className="text-xs text-gray-400 py-10 text-center">Loading…</p>
+            ) : assessmentsRes.error ? (
+              <p className="text-xs text-red-400 py-10 text-center">{assessmentsRes.error}</p>
+            ) : assessments.length === 0 ? (
+              <p className="text-xs text-gray-400 py-10 text-center">No assessments scheduled yet.</p>
+            ) : (
             <div className="bg-[#222326] rounded-2xl border border-gray-800 overflow-hidden">
               <table className="w-full text-left text-xs text-gray-300">
                 <thead className="bg-gray-900 text-gray-400 uppercase font-bold border-b border-gray-800">
                   <tr>
-                    <th className="p-3.5">Student ID</th>
-                    <th className="p-3.5">Student Name</th>
-                    <th className="p-3.5">Synopsis (/25)</th>
-                    <th className="p-3.5">Architecture (/25)</th>
-                    <th className="p-3.5">Code Defense (/25)</th>
-                    <th className="p-3.5">Viva Voce (/25)</th>
-                    <th className="p-3.5">Total (/100)</th>
-                    <th className="p-3.5">Grade</th>
+                    <th className="p-3.5">Title</th>
+                    <th className="p-3.5">Type</th>
+                    <th className="p-3.5">Batch</th>
+                    <th className="p-3.5">Max / Passing</th>
+                    <th className="p-3.5">Conducted</th>
+                    <th className="p-3.5">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {assessments.map((a) => (
-                    <tr key={a.studentId} className="hover:bg-gray-800/40 transition-colors">
-                      <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{a.studentId}</td>
-                      <td className="p-3.5 font-bold text-white">{a.studentName}</td>
-                      <td className="p-3.5">{a.synopsis}</td>
-                      <td className="p-3.5">{a.architecture}</td>
-                      <td className="p-3.5">{a.coding}</td>
-                      <td className="p-3.5">{a.viva}</td>
-                      <td className="p-3.5 font-bold text-white text-sm">{a.total}</td>
+                    <tr key={a.id} className="hover:bg-gray-800/40 transition-colors">
+                      <td className="p-3.5 font-bold text-white">{a.title}</td>
                       <td className="p-3.5">
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#D4A72C]/20 text-[#D4A72C] border border-[#D4A72C]/40">
-                          {a.grade}
+                          {a.assessment_type.replace(/_/g, ' ')}
                         </span>
+                      </td>
+                      <td className="p-3.5 text-gray-400">{batches.find(b => b.id === a.batch)?.name || '—'}</td>
+                      <td className="p-3.5">{a.max_marks} / {a.passing_marks}</td>
+                      <td className="p-3.5 text-gray-400">{a.conducted_at ? new Date(a.conducted_at).toLocaleString() : '—'}</td>
+                      <td className="p-3.5">
+                        {perms.canWriteAssessments && (
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => openEditAssessment(a)} className="p-1 rounded bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-[#D4A72C] border border-gray-800 cursor-pointer" title="Edit">
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => handleDeleteAssessment(a.id)} className="p-1 rounded bg-red-950/40 hover:bg-red-900 text-red-400 border border-red-800 cursor-pointer" title="Delete">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         )}
 
@@ -1408,55 +1820,62 @@ export const ErpDashboard = () => {
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-[#222326] p-4 rounded-2xl border border-gray-800">
               <div>
-                <h3 className="font-bold text-white text-sm">Degree Academic & Industry Live Projects</h3>
-                <p className="text-xs text-gray-400">Track milestones from IEEE SRS to GitHub source code and viva demonstration</p>
+                <h3 className="font-bold text-white text-sm">Academic Project Catalog</h3>
+                <p className="text-xs text-gray-400">Reusable project templates students pick from — domain, abstract, tech stack, documentation links</p>
               </div>
-              <button
-                onClick={() => setIsProjectModalOpen(true)}
-                className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Assign New Project</span>
-              </button>
+              {perms.canWriteCore && (
+                <button
+                  onClick={openAddProject}
+                  className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Project</span>
+                </button>
+              )}
             </div>
 
+            {projectsRes.loading ? (
+              <p className="text-xs text-gray-400 py-10 text-center">Loading…</p>
+            ) : projectsRes.error ? (
+              <p className="text-xs text-red-400 py-10 text-center">{projectsRes.error}</p>
+            ) : projects.length === 0 ? (
+              <p className="text-xs text-gray-400 py-10 text-center">No projects in the catalog yet.</p>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {projects.map((prj) => (
                 <div key={prj.id} className="bg-[#222326] p-6 rounded-2xl border border-gray-800 space-y-4">
                   <div className="flex justify-between items-start">
                     <div>
-                      <span className="font-mono text-xs text-[#D4A72C] font-bold">{prj.id}</span>
+                      <span className="font-mono text-xs text-[#D4A72C] font-bold">{prj.code}</span>
                       <h4 className="font-bold text-white text-base mt-1">{prj.title}</h4>
                     </div>
-                    <span className="px-2.5 py-1 rounded text-[10px] font-bold bg-[#0f766e]/20 text-emerald-400 border border-emerald-800">
-                      {prj.status}
+                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${
+                      prj.is_available ? 'bg-[#0f766e]/20 text-emerald-400 border-emerald-800' : 'bg-gray-800 text-gray-400 border-gray-700'
+                    }`}>
+                      {prj.is_available ? 'Available' : 'Unavailable'}
                     </span>
                   </div>
 
                   <div className="space-y-1.5 text-xs text-gray-400 bg-gray-900 p-3 rounded-xl border border-gray-800">
-                    <p>👨‍🎓 Student: <span className="text-white font-semibold">{prj.student}</span></p>
-                    <p>💻 Tech Stack: <span className="text-emerald-400 font-mono">{prj.stack}</span></p>
-                    <p>👨‍🏫 Mentor: <span className="text-white">{prj.mentor}</span></p>
+                    <p>🏷️ Domain: <span className="text-white font-semibold">{prj.domain || '—'}</span></p>
+                    <p>💻 Tech Stack: <span className="text-emerald-400 font-mono">{prj.technologies || '—'}</span></p>
+                    {prj.abstract && <p className="line-clamp-2">{prj.abstract}</p>}
                   </div>
 
-                  <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-800">
-                    <span className="text-gray-400 font-medium">Milestone: <strong className="text-[#D4A72C]">{prj.phase}</strong></span>
-                    <button
-                      onClick={() => {
-                        const phases = ['Phase 1: Synopsis', 'Phase 2: DB Schema', 'Phase 3: Integration', 'Phase 4: IEEE Doc', 'Completed'];
-                        const currIdx = phases.indexOf(prj.phase);
-                        const nextPhase = phases[(currIdx + 1) % phases.length];
-                        setProjects(projects.map(p => p.id === prj.id ? { ...p, phase: nextPhase, status: nextPhase === 'Completed' ? 'Completed' : 'In Progress' } : p));
-                        showToast(`Project ${prj.id} updated to ${nextPhase}`);
-                      }}
-                      className="px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-white text-[11px] font-bold cursor-pointer"
-                    >
-                      Advance Phase ➔
-                    </button>
-                  </div>
+                  {perms.canWriteCore && (
+                    <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-gray-800">
+                      <button onClick={() => openEditProject(prj)} className="p-1.5 rounded bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-[#D4A72C] border border-gray-800 cursor-pointer" title="Edit">
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDeleteProject(prj.id)} className="p-1.5 rounded bg-red-950/40 hover:bg-red-900 text-red-400 border border-red-800 cursor-pointer" title="Delete">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -1468,65 +1887,89 @@ export const ErpDashboard = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-[#222326] p-5 rounded-2xl border border-gray-800">
                 <span className="text-xs text-gray-400">Total Revenue Collected</span>
-                <h3 className="text-2xl font-extrabold text-emerald-400 mt-1">₹47,500</h3>
-                <p className="text-[10px] text-gray-400 mt-1">Current Active Batches</p>
+                <h3 className="text-2xl font-extrabold text-emerald-400 mt-1">
+                  ₹{transactions.reduce((sum, inv) => sum + Number(inv.paid_amount || 0), 0).toLocaleString()}
+                </h3>
+                <p className="text-[10px] text-gray-400 mt-1">Across {transactions.length} invoice{transactions.length === 1 ? '' : 's'}</p>
               </div>
 
               <div className="bg-[#222326] p-5 rounded-2xl border border-gray-800">
                 <span className="text-xs text-gray-400">Pending Student Dues</span>
-                <h3 className="text-2xl font-extrabold text-amber-400 mt-1">₹14,500</h3>
-                <p className="text-[10px] text-gray-400 mt-1">2 Students Pending</p>
+                <h3 className="text-2xl font-extrabold text-amber-400 mt-1">
+                  ₹{transactions.reduce((sum, inv) => sum + Number(inv.balance_amount || 0), 0).toLocaleString()}
+                </h3>
+                <p className="text-[10px] text-gray-400 mt-1">{transactions.filter(inv => Number(inv.balance_amount) > 0).length} invoice(s) outstanding</p>
               </div>
 
-              <div className="bg-[#222326] p-5 rounded-2xl border border-gray-800 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-gray-400">Quick Payment</span>
-                  <p className="text-xs font-bold text-white mt-1">Record Ledger Entry</p>
+              {perms.canWriteFinance && (
+                <div className="bg-[#222326] p-5 rounded-2xl border border-gray-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs text-gray-400">Quick Payment</span>
+                    <p className="text-xs font-bold text-white mt-1">Record Ledger Entry</p>
+                  </div>
+                  <button
+                    onClick={openRecordPayment}
+                    className="px-4 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold text-xs cursor-pointer"
+                  >
+                    + Record Fee
+                  </button>
                 </div>
-                <button
-                  onClick={() => setIsFeeModalOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold text-xs cursor-pointer"
-                >
-                  + Record Fee
-                </button>
-              </div>
+              )}
             </div>
 
             <div className="bg-[#222326] rounded-2xl border border-gray-800 overflow-hidden">
               <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-                <h4 className="font-bold text-white text-sm">Receipts & Payment Transactions</h4>
-                <span className="text-xs text-gray-400">Auto-Generated Receipt Register</span>
+                <h4 className="font-bold text-white text-sm">Invoices</h4>
+                <span className="text-xs text-gray-400">{invoicesRes.loading ? 'Loading…' : `${transactions.length} total`}</span>
               </div>
+              {invoicesRes.error ? (
+                <p className="text-xs text-red-400 py-10 text-center">{invoicesRes.error}</p>
+              ) : transactions.length === 0 && !invoicesRes.loading ? (
+                <p className="text-xs text-gray-400 py-10 text-center">No invoices yet.</p>
+              ) : (
               <table className="w-full text-left text-xs text-gray-300">
                 <thead className="bg-gray-900 text-gray-400 uppercase font-bold border-b border-gray-800">
                   <tr>
-                    <th className="p-3.5">Receipt #</th>
-                    <th className="p-3.5">Student Name</th>
+                    <th className="p-3.5">Invoice #</th>
+                    <th className="p-3.5">Student</th>
                     <th className="p-3.5">Program</th>
-                    <th className="p-3.5">Amount Paid</th>
-                    <th className="p-3.5">Payment Mode</th>
-                    <th className="p-3.5">Date</th>
+                    <th className="p-3.5">Total</th>
+                    <th className="p-3.5">Paid</th>
+                    <th className="p-3.5">Balance</th>
                     <th className="p-3.5">Status</th>
+                    <th className="p-3.5">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
                   {transactions.map((tx) => (
-                    <tr key={tx.receiptNo} className="hover:bg-gray-800/40 transition-colors">
-                      <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{tx.receiptNo}</td>
-                      <td className="p-3.5 font-bold text-white">{tx.student}</td>
-                      <td className="p-3.5 text-gray-300">{tx.program}</td>
-                      <td className="p-3.5 font-bold text-emerald-400">{tx.amount}</td>
-                      <td className="p-3.5 text-gray-400">{tx.mode}</td>
-                      <td className="p-3.5 text-gray-400">{tx.date}</td>
+                    <tr key={tx.id} className="hover:bg-gray-800/40 transition-colors">
+                      <td className="p-3.5 font-mono font-bold text-[#D4A72C]">{tx.invoice_number}</td>
+                      <td className="p-3.5 font-bold text-white">{tx.student_name}</td>
+                      <td className="p-3.5 text-gray-300">{tx.program_title}</td>
+                      <td className="p-3.5">₹{Number(tx.total_amount).toLocaleString()}</td>
+                      <td className="p-3.5 font-bold text-emerald-400">₹{Number(tx.paid_amount).toLocaleString()}</td>
+                      <td className="p-3.5">₹{Number(tx.balance_amount).toLocaleString()}</td>
                       <td className="p-3.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                          tx.status === 'PAID' ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                          : tx.status === 'CANCELLED' ? 'bg-gray-800 text-gray-400 border-gray-700'
+                          : 'bg-amber-950 text-amber-400 border-amber-800'
+                        }`}>
                           {tx.status}
                         </span>
+                      </td>
+                      <td className="p-3.5">
+                        {perms.canWriteFinance && (
+                          <button onClick={() => handleDeleteInvoice(tx.id)} className="p-1.5 rounded bg-red-950/40 hover:bg-red-900 text-red-400 border border-red-800 cursor-pointer" title="Delete">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              )}
             </div>
           </div>
         )}
@@ -1541,45 +1984,66 @@ export const ErpDashboard = () => {
                 <h3 className="font-bold text-white text-sm">Issued Certificates & QR Verification</h3>
                 <p className="text-xs text-gray-400">Verifiable credentials issued under Gnana Computech Solutions Pvt Ltd</p>
               </div>
-              <button
-                onClick={() => setIsCertModalOpen(true)}
-                className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Issue Certificate</span>
-              </button>
+              {perms.canWriteFinance && (
+                <button
+                  onClick={() => { setCertForm({ enrollment: '', title: 'Certificate of Completion' }); setCertFormError(''); setIsCertModalOpen(true); }}
+                  className="px-4 py-2 rounded-xl bg-[#D4A72C] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Issue Certificate</span>
+                </button>
+              )}
             </div>
 
+            {certificatesRes.loading ? (
+              <p className="text-xs text-gray-400 py-10 text-center">Loading…</p>
+            ) : certificatesRes.error ? (
+              <p className="text-xs text-red-400 py-10 text-center">{certificatesRes.error}</p>
+            ) : certificates.length === 0 ? (
+              <p className="text-xs text-gray-400 py-10 text-center">No certificates issued yet.</p>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {certificates.map((cert) => (
-                <div key={cert.certId} className="bg-[#222326] p-6 rounded-2xl border border-gray-800 space-y-4 flex flex-col justify-between">
+                <div key={cert.id} className="bg-[#222326] p-6 rounded-2xl border border-gray-800 space-y-4 flex flex-col justify-between">
                   <div>
                     <div className="flex justify-between items-start mb-2">
-                      <span className="font-mono text-xs text-[#D4A72C] font-bold">{cert.certId}</span>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#0f766e]/20 text-emerald-400 border border-emerald-800">
-                        {cert.grade}
+                      <span className="font-mono text-xs text-[#D4A72C] font-bold">{cert.certificate_number}</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                        cert.status === 'ISSUED' ? 'bg-[#0f766e]/20 text-emerald-400 border-emerald-800'
+                        : cert.status === 'REVOKED' ? 'bg-red-950 text-red-400 border-red-800'
+                        : 'bg-amber-950 text-amber-400 border-amber-800'
+                      }`}>
+                        {cert.status}
                       </span>
                     </div>
-                    <h4 className="font-bold text-white text-base">{cert.studentName}</h4>
-                    <p className="text-xs text-gray-300 mt-1">{cert.program}</p>
-                    <p className="text-[11px] text-gray-400 mt-1">Issue Date: {cert.date}</p>
+                    <h4 className="font-bold text-white text-base">{cert.student_name}</h4>
+                    <p className="text-xs text-gray-300 mt-1">{cert.program_title}</p>
+                    <p className="text-[11px] text-gray-400 mt-1">Issue Date: {cert.issue_date || '—'}</p>
                   </div>
 
                   <div className="pt-3 border-t border-gray-800 flex justify-between items-center">
-                    <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
-                      <ShieldCheck className="w-3.5 h-3.5" /> QR Verifiable
-                    </span>
-                    <button
-                      onClick={() => setViewCertificateModal(cert)}
-                      className="px-3 py-1.5 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold border border-gray-700 flex items-center gap-1 cursor-pointer"
+                    <a
+                      href={`/verify/${cert.token}/`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold hover:underline"
                     >
-                      <Eye className="w-3.5 h-3.5 text-[#D4A72C]" />
-                      <span>Preview</span>
-                    </button>
+                      <ShieldCheck className="w-3.5 h-3.5" /> QR Verifiable — View
+                    </a>
+                    {cert.status === 'ISSUED' && perms.canWriteFinance && (
+                      <button
+                        onClick={() => handleRevokeCertificate(cert.id)}
+                        className="px-3 py-1.5 rounded-lg bg-red-950/40 hover:bg-red-900 text-red-400 text-xs font-bold border border-red-800 flex items-center gap-1 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Revoke</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 
@@ -1724,6 +2188,127 @@ export const ErpDashboard = () => {
           </div>
         )}
 
+        {/* ---------------------------------------------------- */}
+        {/* TAB 15: WEBSITE CONTENT (CMS) */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'Content' && (
+          <div className="space-y-6">
+            <div className="bg-[#222326] p-4 rounded-2xl border border-gray-800">
+              <p className="text-xs text-gray-400 mb-3">
+                Manage what visitors see on the public website — nothing here needs a code deploy.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {CONTENT_SECTIONS.map((s) => (
+                  <button
+                    key={s.value}
+                    onClick={() => setContentSection(s.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      contentSection === s.value
+                        ? 'bg-[#D4A72C] text-[#17181A]'
+                        : 'bg-gray-900 text-gray-300 border border-gray-800 hover:border-[#D4A72C]'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-300">
+                  {siteContentTotal} item{siteContentTotal === 1 ? '' : 's'} in this section
+                </span>
+                <button
+                  onClick={() => loadSiteContent(contentSection)}
+                  className="p-1.5 rounded-lg bg-gray-900 border border-gray-800 hover:border-[#D4A72C] text-gray-400 hover:text-[#D4A72C] cursor-pointer"
+                  title="Refresh"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${siteContentLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              {perms.canWriteContent && (
+                <button
+                  onClick={openAddContent}
+                  className="px-4 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold text-xs flex items-center gap-2 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Item</span>
+                </button>
+              )}
+            </div>
+
+            <div className="bg-[#222326] rounded-2xl border border-gray-800 overflow-hidden">
+              {siteContentLoading ? (
+                <p className="text-xs text-gray-400 py-10 text-center">Loading…</p>
+              ) : siteContentError ? (
+                <p className="text-xs text-red-400 py-10 text-center">{siteContentError}</p>
+              ) : siteContentItems.length === 0 ? (
+                <p className="text-xs text-gray-400 py-10 text-center">Nothing here yet — click "Add Item" to publish the first one.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-gray-300">
+                    <thead className="bg-gray-900 text-gray-400 uppercase font-bold border-b border-gray-800">
+                      <tr>
+                        <th className="p-3.5">Order</th>
+                        <th className="p-3.5">Title</th>
+                        <th className="p-3.5">Subtitle</th>
+                        <th className="p-3.5">Status</th>
+                        <th className="p-3.5">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800">
+                      {siteContentItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-800/40 transition-colors">
+                          <td className="p-3.5 font-mono text-gray-400">{item.display_order}</td>
+                          <td className="p-3.5 font-bold text-white">
+                            <div className="flex items-center gap-2">
+                              {item.image_url && (
+                                <img src={item.image_url} alt="" className="w-7 h-7 rounded object-cover border border-gray-700 flex-shrink-0" />
+                              )}
+                              <span>{item.title}</span>
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-gray-400">{item.subtitle || '—'}</td>
+                          <td className="p-3.5">
+                            <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${
+                              item.is_active
+                                ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                                : 'bg-gray-800 text-gray-400 border-gray-700'
+                            }`}>
+                              {item.is_active ? 'Published' : 'Hidden'}
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            {perms.canWriteContent && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => openEditContent(item)}
+                                  className="p-1.5 rounded bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-[#D4A72C] border border-gray-800 cursor-pointer"
+                                  title="Edit"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteContent(item.id)}
+                                  className="p-1.5 rounded bg-red-950/40 hover:bg-red-900 text-red-400 border border-red-800 cursor-pointer"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* ---------------------------------------------------- */}
@@ -1789,7 +2374,7 @@ export const ErpDashboard = () => {
                     className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
                   >
                     {batches.map(b => (
-                      <option key={b.code} value={b.code}>{b.code}</option>
+                      <option key={b.id} value={b.business_id}>{b.business_id}</option>
                     ))}
                   </select>
                 </div>
@@ -1923,43 +2508,48 @@ export const ErpDashboard = () => {
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* MODAL 2: RECORD FEE PAYMENT */}
+      {/* MODAL 2: RECORD FEE PAYMENT — real POST /api/v1/payments/ */}
       {/* ---------------------------------------------------- */}
       {isFeeModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl">
             <div className="flex justify-between items-center border-b border-gray-800 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-emerald-400" /> Record Fee Payment & Receipt
+                <DollarSign className="w-5 h-5 text-emerald-400" /> Record Fee Payment
               </h3>
               <button onClick={() => setIsFeeModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleRecordFee} className="space-y-4 text-xs">
+            <form onSubmit={handleRecordPayment} className="space-y-4 text-xs">
+              {paymentFormError && (
+                <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{paymentFormError}</div>
+              )}
               <div>
-                <label className="block text-gray-400 mb-1">Select Student</label>
+                <label className="block text-gray-400 mb-1">Invoice *</label>
                 <select
-                  value={newFee.student}
-                  onChange={(e) => setNewFee({ ...newFee, student: e.target.value })}
+                  required
+                  value={paymentForm.invoice}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, invoice: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
                 >
-                  {students.map(s => (
-                    <option key={s.id} value={s.user_details?.full_name}>
-                      {s.user_details?.full_name} ({s.business_id})
+                  <option value="">Select an invoice…</option>
+                  {transactions.map(inv => (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.invoice_number} — {inv.student_name} — Balance ₹{Number(inv.balance_amount).toLocaleString()}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1">Amount to Collect (₹) *</label>
+                <label className="block text-gray-400 mb-1">Amount Received (₹) *</label>
                 <input
                   type="number"
                   required
-                  value={newFee.amount}
-                  onChange={(e) => setNewFee({ ...newFee, amount: e.target.value })}
+                  value={paymentForm.amount}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white text-base font-bold font-mono focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -1967,15 +2557,26 @@ export const ErpDashboard = () => {
               <div>
                 <label className="block text-gray-400 mb-1">Payment Method</label>
                 <select
-                  value={newFee.mode}
-                  onChange={(e) => setNewFee({ ...newFee, mode: e.target.value })}
+                  value={paymentForm.payment_mode}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, payment_mode: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
                 >
-                  <option value="UPI / PhonePe / GPay">UPI / PhonePe / GPay</option>
-                  <option value="Cash at Sunkadakatte Desk">Cash at Sunkadakatte Desk</option>
-                  <option value="Direct Bank Transfer (NEFT/IMPS)">Direct Bank Transfer (NEFT/IMPS)</option>
-                  <option value="Debit / Credit Card">Debit / Credit Card</option>
+                  <option value="UPI">UPI / QR Code</option>
+                  <option value="CASH">Cash</option>
+                  <option value="BANK_TRANSFER">NEFT / RTGS / IMPS</option>
+                  <option value="CARD">Credit / Debit Card</option>
+                  <option value="CHEQUE">Bank Cheque / DD</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1">Transaction Reference</label>
+                <input
+                  type="text"
+                  value={paymentForm.transaction_id}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, transaction_id: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#D4A72C]"
+                />
               </div>
 
               <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
@@ -1990,7 +2591,7 @@ export const ErpDashboard = () => {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
                 >
-                  Generate & Print Receipt
+                  Record Payment
                 </button>
               </div>
             </form>
@@ -1999,7 +2600,7 @@ export const ErpDashboard = () => {
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* MODAL 3: ISSUE CERTIFICATE */}
+      {/* MODAL 3: ISSUE CERTIFICATE — real eligibility-checked issuance */}
       {/* ---------------------------------------------------- */}
       {isCertModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -2014,51 +2615,41 @@ export const ErpDashboard = () => {
             </div>
 
             <form onSubmit={handleIssueCertificate} className="space-y-4 text-xs">
+              {certFormError && (
+                <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{certFormError}</div>
+              )}
               <div>
-                <label className="block text-gray-400 mb-1">Student Recipient Name *</label>
+                <label className="block text-gray-400 mb-1">Enrollment *</label>
+                <select
+                  required
+                  value={certForm.enrollment}
+                  onChange={(e) => setCertForm({ ...certForm, enrollment: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                >
+                  <option value="">Select an enrollment…</option>
+                  {enrollmentQueue.map(enr => (
+                    <option key={enr.id} value={enr.id}>
+                      {enr.business_id} — {enr.student_name} — {enr.program_title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1">Certificate Title</label>
                 <input
                   type="text"
-                  required
-                  placeholder="e.g. Kavya R."
-                  value={newCert.studentName}
-                  onChange={(e) => setNewCert({ ...newCert, studentName: e.target.value })}
+                  value={certForm.title}
+                  onChange={(e) => setCertForm({ ...certForm, title: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
                 />
               </div>
 
-              <div>
-                <label className="block text-gray-400 mb-1">Program / Course Title</label>
-                <select
-                  value={newCert.program}
-                  onChange={(e) => setNewCert({ ...newCert, program: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
-                >
-                  <option>BCA Final Year Degree Project Defense</option>
-                  <option>MCA Enterprise Software Project Track</option>
-                  <option>Full Stack Web Development (JAVA/PYTHON)</option>
-                  <option>Python & AI Machine Learning Track</option>
-                  <option>Java Spring Boot Full Stack</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-gray-400 mb-1">Performance Grade</label>
-                <select
-                  value={newCert.grade}
-                  onChange={(e) => setNewCert({ ...newCert, grade: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
-                >
-                  <option value="Grade A+ (Distinction)">Grade A+ (Distinction)</option>
-                  <option value="Grade A (Excellent)">Grade A (Excellent)</option>
-                  <option value="Grade B+ (Good)">Grade B+ (Good)</option>
-                </select>
-              </div>
-
               <div className="p-3 rounded-xl bg-gray-900 border border-gray-800 text-[11px] text-gray-400 space-y-1">
                 <p className="text-emerald-400 font-bold flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" /> Official QR Code Verification
+                  <ShieldCheck className="w-3.5 h-3.5" /> Eligibility Checked Automatically
                 </p>
-                <p>Certificate will be stamped with CIN: U85500KA2025PTC205651</p>
+                <p>Issuance runs the full eligibility chain (attendance, assessments, fee clearance) server-side before generating the QR-verifiable PDF.</p>
               </div>
 
               <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
@@ -2073,7 +2664,7 @@ export const ErpDashboard = () => {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer"
                 >
-                  Issue & Generate Certificate
+                  Issue Certificate
                 </button>
               </div>
             </form>
@@ -2082,66 +2673,83 @@ export const ErpDashboard = () => {
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* MODAL 4: ASSIGN PROJECT */}
+      {/* MODAL 4: ADD / EDIT PROJECT — real /api/v1/academics/projects/ */}
       {/* ---------------------------------------------------- */}
       {isProjectModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl my-8">
             <div className="flex justify-between items-center border-b border-gray-800 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <FolderGit2 className="w-5 h-5 text-purple-400" /> Assign Degree Project
+                <FolderGit2 className="w-5 h-5 text-purple-400" /> {editingProjectId ? 'Edit' : 'Add'} Project
               </h3>
               <button onClick={() => setIsProjectModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddProject} className="space-y-4 text-xs">
+            <form onSubmit={handleSaveProject} className="space-y-4 text-xs">
+              {projectFormError && (
+                <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{projectFormError}</div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 mb-1">Code *</label>
+                  <input
+                    type="text" required
+                    value={projectForm.code}
+                    onChange={(e) => setProjectForm({ ...projectForm, code: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Domain</label>
+                  <input
+                    type="text" placeholder="AI/ML, Cloud, Web…"
+                    value={projectForm.domain}
+                    onChange={(e) => setProjectForm({ ...projectForm, domain: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-400"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-gray-400 mb-1">Project Title *</label>
+                <label className="block text-gray-400 mb-1">Title *</label>
                 <input
-                  type="text"
-                  required
-                  placeholder="e.g. AI-Powered Autonomous Warehouse Fleet"
-                  value={newProject.title}
-                  onChange={(e) => setNewProject({ ...newProject, title: e.target.value })}
+                  type="text" required
+                  value={projectForm.title}
+                  onChange={(e) => setProjectForm({ ...projectForm, title: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-400"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1">Assigned Student / Team *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Prajwal Gowda & Manoj Kumar"
-                  value={newProject.student}
-                  onChange={(e) => setNewProject({ ...newProject, student: e.target.value })}
+                <label className="block text-gray-400 mb-1">Abstract</label>
+                <textarea
+                  rows={3}
+                  value={projectForm.abstract}
+                  onChange={(e) => setProjectForm({ ...projectForm, abstract: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-400"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1">Technology Stack</label>
+                <label className="block text-gray-400 mb-1">Technologies</label>
                 <input
-                  type="text"
-                  value={newProject.stack}
-                  onChange={(e) => setNewProject({ ...newProject, stack: e.target.value })}
+                  type="text" placeholder="React, Node.js, MongoDB…"
+                  value={projectForm.technologies}
+                  onChange={(e) => setProjectForm({ ...projectForm, technologies: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-purple-400"
                 />
               </div>
 
-              <div>
-                <label className="block text-gray-400 mb-1">Assigned Mentor</label>
-                <select
-                  value={newProject.mentor}
-                  onChange={(e) => setNewProject({ ...newProject, mentor: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-400"
-                >
-                  <option>Naveen Kumar (Principal Architect)</option>
-                  <option>Harish Babu (Java Lead)</option>
-                  <option>Sowmya M. (Python/AI Guide)</option>
-                </select>
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  checked={projectForm.is_available}
+                  onChange={(e) => setProjectForm({ ...projectForm, is_available: e.target.checked })}
+                  className="rounded text-purple-400 focus:ring-purple-400"
+                />
+                <label className="text-gray-300">Available for new students to pick</label>
               </div>
 
               <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
@@ -2156,7 +2764,7 @@ export const ErpDashboard = () => {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold cursor-pointer"
                 >
-                  Assign Project
+                  {editingProjectId ? 'Save Changes' : 'Add Project'}
                 </button>
               </div>
             </form>
@@ -2165,80 +2773,92 @@ export const ErpDashboard = () => {
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* MODAL 5: CREATE BATCH */}
+      {/* MODAL 5: ADD / EDIT BATCH — real /api/v1/batches/ */}
       {/* ---------------------------------------------------- */}
       {isBatchModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl my-8">
             <div className="flex justify-between items-center border-b border-gray-800 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Layers className="w-5 h-5 text-cyan-400" /> Create Lab Batch
+                <Layers className="w-5 h-5 text-cyan-400" /> {editingBatchId ? 'Edit' : 'Create'} Batch
               </h3>
               <button onClick={() => setIsBatchModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateBatch} className="space-y-4 text-xs">
+            <form onSubmit={handleSaveBatch} className="space-y-4 text-xs">
+              {batchFormError && (
+                <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{batchFormError}</div>
+              )}
               <div>
-                <label className="block text-gray-400 mb-1">Batch Code *</label>
+                <label className="block text-gray-400 mb-1">Batch Name *</label>
                 <input
-                  type="text"
-                  required
-                  placeholder="e.g. BCA-2026-B2"
-                  value={newBatch.code}
-                  onChange={(e) => setNewBatch({ ...newBatch, code: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-400"
+                  type="text" required
+                  placeholder="e.g. Summer 2026 AI Batch 02"
+                  value={batchForm.name}
+                  onChange={(e) => setBatchForm({ ...batchForm, name: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1">Program</label>
+                <label className="block text-gray-400 mb-1">Program *</label>
                 <select
-                  value={newBatch.program}
-                  onChange={(e) => setNewBatch({ ...newBatch, program: e.target.value })}
+                  required
+                  value={batchForm.program}
+                  onChange={(e) => setBatchForm({ ...batchForm, program: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
                 >
-                  <option>BCA Final Year Project</option>
-                  <option>MCA Academic Track</option>
-                  <option>Full Stack Web Dev (JAVA/PYTHON)</option>
-                  <option>Python & AI Track</option>
-                  <option>Java Spring Boot Full Stack</option>
+                  <option value="">Select a program…</option>
+                  {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1">Institution</label>
+                <select
+                  value={batchForm.institution}
+                  onChange={(e) => setBatchForm({ ...batchForm, institution: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="">— None —</option>
+                  {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-gray-400 mb-1">Time Slot</label>
+                  <label className="block text-gray-400 mb-1">Start Date *</label>
                   <input
-                    type="text"
-                    value={newBatch.timing}
-                    onChange={(e) => setNewBatch({ ...newBatch, timing: e.target.value })}
+                    type="date" required
+                    value={batchForm.start_date}
+                    onChange={(e) => setBatchForm({ ...batchForm, start_date: e.target.value })}
                     className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-gray-400 mb-1">Max Capacity</label>
+                  <label className="block text-gray-400 mb-1">End Date</label>
                   <input
-                    type="number"
-                    value={newBatch.max}
-                    onChange={(e) => setNewBatch({ ...newBatch, max: Number(e.target.value) })}
+                    type="date"
+                    value={batchForm.end_date}
+                    onChange={(e) => setBatchForm({ ...batchForm, end_date: e.target.value })}
                     className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-gray-400 mb-1">Assigned Trainer</label>
+                <label className="block text-gray-400 mb-1">Status</label>
                 <select
-                  value={newBatch.trainer}
-                  onChange={(e) => setNewBatch({ ...newBatch, trainer: e.target.value })}
+                  value={batchForm.status}
+                  onChange={(e) => setBatchForm({ ...batchForm, status: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
                 >
-                  <option>Naveen Kumar</option>
-                  <option>Harish Babu</option>
-                  <option>Sowmya M.</option>
+                  <option value="UPCOMING">Upcoming</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="ARCHIVED">Archived</option>
                 </select>
               </div>
 
@@ -2254,7 +2874,7 @@ export const ErpDashboard = () => {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold cursor-pointer"
                 >
-                  Create Batch
+                  {editingBatchId ? 'Save Changes' : 'Create Batch'}
                 </button>
               </div>
             </form>
@@ -2263,75 +2883,426 @@ export const ErpDashboard = () => {
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* MODAL 6: VIEW CERTIFICATE PREVIEW */}
+      {/* MODAL: EDIT STUDENT — real /api/v1/students/ (professional details only) */}
       {/* ---------------------------------------------------- */}
-      {viewCertificateModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 backdrop-blur-md">
-          <div className="bg-white text-[#17181A] rounded-3xl p-8 max-w-2xl w-full border-4 border-[#D4A72C] shadow-2xl relative">
-            <button
-              onClick={() => setViewCertificateModal(null)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-black cursor-pointer"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            <div className="border-2 border-dashed border-[#D4A72C]/70 p-6 sm:p-8 rounded-2xl text-center space-y-4 bg-gradient-to-b from-amber-50/40 to-white">
-              <div className="flex justify-center mb-2">
-                <div className="w-12 h-12 rounded-full bg-[#17181A] text-[#D4A72C] flex items-center justify-center font-extrabold text-xl shadow">
-                  GCS
-                </div>
-              </div>
-
-              <span className="text-xs uppercase font-extrabold tracking-widest text-[#0f766e]">
-                Gnana Computech Solutions Private Limited
-              </span>
-              <p className="text-[10px] text-gray-500 font-mono">CIN: U85500KA2025PTC205651 • Sunkadakatte, Bangalore</p>
-
-              <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#17181A] pt-2">
-                Certificate of Academic Excellence
-              </h2>
-
-              <p className="text-xs text-gray-600">This is to officially certify that</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-[#01083f] underline decoration-[#D4A72C] decoration-2">
-                {viewCertificateModal.studentName}
+      {isStudentEditModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Edit className="w-5 h-5 text-[#D4A72C]" /> Edit Student
               </h3>
-
-              <p className="text-xs text-gray-600 max-w-lg mx-auto leading-relaxed">
-                has successfully completed all project modules and viva-voce requirements for the program:
-              </p>
-
-              <p className="text-sm font-extrabold text-[#0f766e]">
-                {viewCertificateModal.program}
-              </p>
-
-              <div className="inline-block px-4 py-1 rounded-full bg-[#D4A72C]/20 border border-[#D4A72C] text-xs font-bold text-[#17181A]">
-                {viewCertificateModal.grade}
-              </div>
-
-              <div className="pt-6 mt-4 border-t border-gray-200 flex justify-between items-end text-left text-xs">
-                <div>
-                  <p className="font-mono text-[10px] text-gray-500">Certificate ID: <strong>{viewCertificateModal.certId}</strong></p>
-                  <p className="font-mono text-[10px] text-gray-500">Issued On: {viewCertificateModal.date}</p>
-                  <p className="text-[10px] text-emerald-700 font-bold mt-1">✓ Corporate Standard Verified</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-28 border-b border-gray-800 pb-1 mb-1 font-serif italic text-xs">Naveen Kumar</div>
-                  <p className="text-[10px] text-gray-500 font-bold">Authorized Signatory</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  window.print();
-                }}
-                className="px-4 py-2 rounded-xl bg-gray-900 text-white font-bold text-xs flex items-center gap-2 hover:bg-black cursor-pointer"
-              >
-                <Printer className="w-4 h-4 text-[#D4A72C]" />
-                <span>Print / Save PDF</span>
+              <button onClick={() => setIsStudentEditModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
               </button>
             </div>
+            <form onSubmit={handleSaveStudentEdit} className="space-y-4 text-xs">
+              {studentEditFormError && <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{studentEditFormError}</div>}
+              <div>
+                <label className="block text-gray-400 mb-1">Institution</label>
+                <select value={studentEditForm.institution} onChange={(e) => setStudentEditForm({ ...studentEditForm, institution: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                  <option value="">— None —</option>
+                  {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 mb-1">Degree</label>
+                  <input type="text" value={studentEditForm.degree} onChange={(e) => setStudentEditForm({ ...studentEditForm, degree: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Semester</label>
+                  <input type="number" value={studentEditForm.semester} onChange={(e) => setStudentEditForm({ ...studentEditForm, semester: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 mb-1">USN</label>
+                  <input type="text" value={studentEditForm.usn} onChange={(e) => setStudentEditForm({ ...studentEditForm, usn: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Branch</label>
+                  <input type="text" value={studentEditForm.branch} onChange={(e) => setStudentEditForm({ ...studentEditForm, branch: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" checked={studentEditForm.is_active} onChange={(e) => setStudentEditForm({ ...studentEditForm, is_active: e.target.checked })}
+                  className="rounded text-[#D4A72C] focus:ring-[#D4A72C]" />
+                <label className="text-gray-300">Active</label>
+              </div>
+              <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsStudentEditModalOpen(false)} className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL: ADD / EDIT INSTITUTION — real /api/v1/institutions/ */}
+      {/* ---------------------------------------------------- */}
+      {isInstModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl my-8">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-[#D4A72C]" /> {editingInstId ? 'Edit' : 'Add'} Institution
+              </h3>
+              <button onClick={() => setIsInstModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveInstitution} className="space-y-4 text-xs">
+              {instFormError && <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{instFormError}</div>}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 mb-1">Code *</label>
+                  <input type="text" required value={instForm.code} onChange={(e) => setInstForm({ ...instForm, code: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">City</label>
+                  <input type="text" value={instForm.city} onChange={(e) => setInstForm({ ...instForm, city: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Institution Name *</label>
+                <input type="text" required value={instForm.name} onChange={(e) => setInstForm({ ...instForm, name: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Address</label>
+                <textarea rows={2} value={instForm.address} onChange={(e) => setInstForm({ ...instForm, address: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 mb-1">Contact Email</label>
+                  <input type="email" value={instForm.contact_email} onChange={(e) => setInstForm({ ...instForm, contact_email: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Contact Phone</label>
+                  <input type="text" value={instForm.contact_phone} onChange={(e) => setInstForm({ ...instForm, contact_phone: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+              </div>
+              <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsInstModalOpen(false)} className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer">{editingInstId ? 'Save Changes' : 'Add Institution'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL: ADD / EDIT PROGRAM — real /api/v1/programs/ */}
+      {/* ---------------------------------------------------- */}
+      {isProgramModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl my-8">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-[#D4A72C]" /> {editingProgramId ? 'Edit' : 'Add'} Program
+              </h3>
+              <button onClick={() => setIsProgramModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveProgram} className="space-y-4 text-xs">
+              {programFormError && <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{programFormError}</div>}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 mb-1">Code *</label>
+                  <input type="text" required value={programForm.code} onChange={(e) => setProgramForm({ ...programForm, code: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Type</label>
+                  <select value={programForm.program_type} onChange={(e) => setProgramForm({ ...programForm, program_type: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                    <option value="INTERNSHIP">Software Internship</option>
+                    <option value="ACADEMIC_PROJECT">Academic Project</option>
+                    <option value="COURSE">Professional Training Course</option>
+                    <option value="WORKSHOP">Technical Workshop / Seminar</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Title *</label>
+                <input type="text" required value={programForm.title} onChange={(e) => setProgramForm({ ...programForm, title: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Description</label>
+                <textarea rows={2} value={programForm.description} onChange={(e) => setProgramForm({ ...programForm, description: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 mb-1">Duration (weeks)</label>
+                  <input type="number" value={programForm.duration_weeks} onChange={(e) => setProgramForm({ ...programForm, duration_weeks: Number(e.target.value) })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Base Fee (₹)</label>
+                  <input type="number" value={programForm.base_fee} onChange={(e) => setProgramForm({ ...programForm, base_fee: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+              </div>
+              <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsProgramModalOpen(false)} className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer">{editingProgramId ? 'Save Changes' : 'Add Program'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL: EDIT EMPLOYEE — real /api/v1/employees/ (no create: needs an existing User account) */}
+      {/* ---------------------------------------------------- */}
+      {isEmpModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-[#D4A72C]" /> Edit Employee
+              </h3>
+              <button onClick={() => setIsEmpModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveEmployee} className="space-y-4 text-xs">
+              {empFormError && <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{empFormError}</div>}
+              <div>
+                <label className="block text-gray-400 mb-1">Designation *</label>
+                <input type="text" required value={empForm.designation} onChange={(e) => setEmpForm({ ...empForm, designation: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Department</label>
+                <select value={empForm.department} onChange={(e) => setEmpForm({ ...empForm, department: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                  <option value="">— None —</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsEmpModalOpen(false)} className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL: ADD EMPLOYEE — /api/v1/employees/create-with-user/ (creates the login account + employee profile together) */}
+      {/* ---------------------------------------------------- */}
+      {isAddEmpModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl my-8">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-[#D4A72C]" /> Add Employee
+              </h3>
+              <button onClick={() => setIsAddEmpModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleAddEmployee} className="space-y-4 text-xs">
+              {addEmpFormError && <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{addEmpFormError}</div>}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-gray-400 mb-1">Full Name *</label>
+                  <input type="text" required value={addEmpForm.full_name} onChange={(e) => setAddEmpForm({ ...addEmpForm, full_name: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-gray-400 mb-1">Email *</label>
+                  <input type="email" required value={addEmpForm.email} onChange={(e) => setAddEmpForm({ ...addEmpForm, email: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Phone</label>
+                  <input type="text" value={addEmpForm.phone} onChange={(e) => setAddEmpForm({ ...addEmpForm, phone: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Temp Password *</label>
+                  <input type="text" required value={addEmpForm.password} onChange={(e) => setAddEmpForm({ ...addEmpForm, password: e.target.value })}
+                    placeholder="min 8 characters" className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-gray-400 mb-1">ERP Role *</label>
+                  <select required value={addEmpForm.role} onChange={(e) => setAddEmpForm({ ...addEmpForm, role: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                    <option value="">Select a role…</option>
+                    {ASSIGNABLE_STAFF_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Employee ID *</label>
+                  <input type="text" required value={addEmpForm.employee_id} onChange={(e) => setAddEmpForm({ ...addEmpForm, employee_id: e.target.value })}
+                    placeholder="e.g. GCS-EMP-001" className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Designation *</label>
+                  <input type="text" required value={addEmpForm.designation} onChange={(e) => setAddEmpForm({ ...addEmpForm, designation: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Department</label>
+                  <select value={addEmpForm.department} onChange={(e) => setAddEmpForm({ ...addEmpForm, department: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                    <option value="">— None —</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Joining Date</label>
+                  <input type="date" value={addEmpForm.joining_date} onChange={(e) => setAddEmpForm({ ...addEmpForm, joining_date: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+              </div>
+              <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsAddEmpModalOpen(false)} className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer">Add Employee</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL: ADD / EDIT ASSESSMENT — real /api/v1/academics/assessments/ */}
+      {/* ---------------------------------------------------- */}
+      {isAssessmentModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl my-8">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-[#D4A72C]" /> {editingAssessmentId ? 'Edit' : 'Add'} Assessment
+              </h3>
+              <button onClick={() => setIsAssessmentModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveAssessment} className="space-y-4 text-xs">
+              {assessmentFormError && <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{assessmentFormError}</div>}
+              <div>
+                <label className="block text-gray-400 mb-1">Batch *</label>
+                <select required value={assessmentForm.batch} onChange={(e) => setAssessmentForm({ ...assessmentForm, batch: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                  <option value="">Select a batch…</option>
+                  {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Title *</label>
+                <input type="text" required value={assessmentForm.title} onChange={(e) => setAssessmentForm({ ...assessmentForm, title: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 mb-1">Type</label>
+                  <select value={assessmentForm.assessment_type} onChange={(e) => setAssessmentForm({ ...assessmentForm, assessment_type: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                    <option value="QUIZ">Quiz</option>
+                    <option value="MID_TERM">Mid-Term Exam</option>
+                    <option value="FINAL_EXAM">Final Exam</option>
+                    <option value="PROJECT_VIVA">Project Viva Defense</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Conducted On</label>
+                  <input type="datetime-local" value={assessmentForm.conducted_at} onChange={(e) => setAssessmentForm({ ...assessmentForm, conducted_at: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 mb-1">Max Marks</label>
+                  <input type="number" value={assessmentForm.max_marks} onChange={(e) => setAssessmentForm({ ...assessmentForm, max_marks: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+                <div>
+                  <label className="block text-gray-400 mb-1">Passing Marks</label>
+                  <input type="number" value={assessmentForm.passing_marks} onChange={(e) => setAssessmentForm({ ...assessmentForm, passing_marks: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                </div>
+              </div>
+              <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsAssessmentModalOpen(false)} className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer">{editingAssessmentId ? 'Save Changes' : 'Add Assessment'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL: NEW ENROLLMENT — real /api/v1/enrollments/ */}
+      {/* ---------------------------------------------------- */}
+      {isEnrollmentModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full text-white space-y-5 shadow-2xl my-8">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-[#D4A72C]" /> New Enrollment
+              </h3>
+              <button onClick={() => setIsEnrollmentModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveEnrollment} className="space-y-4 text-xs">
+              {enrollmentFormError && <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{enrollmentFormError}</div>}
+              <div>
+                <label className="block text-gray-400 mb-1">Student *</label>
+                <select required value={enrollmentForm.student} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, student: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                  <option value="">Select a student…</option>
+                  {students.map(s => <option key={s.id} value={s.id}>{s.user_details?.full_name} ({s.business_id})</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Program *</label>
+                <select required value={enrollmentForm.program} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, program: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                  <option value="">Select a program…</option>
+                  {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Batch *</label>
+                <select required value={enrollmentForm.batch} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, batch: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                  <option value="">Select a batch…</option>
+                  {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Institution *</label>
+                <select required value={enrollmentForm.institution} onChange={(e) => setEnrollmentForm({ ...enrollmentForm, institution: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]">
+                  <option value="">Select an institution…</option>
+                  {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                </select>
+              </div>
+              <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsEnrollmentModalOpen(false)} className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold cursor-pointer">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer">Create Enrollment</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -2475,6 +3446,188 @@ export const ErpDashboard = () => {
                 </button>
               </div>
 
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL: ADD / EDIT WEBSITE CONTENT */}
+      {/* ---------------------------------------------------- */}
+      {isContentModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full text-white space-y-5 shadow-2xl my-8">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Layout className="w-5 h-5 text-[#D4A72C]" />
+                {editingContentId ? 'Edit' : 'Add'} {CONTENT_SECTIONS.find(s => s.value === contentForm.section)?.label}
+              </h3>
+              <button onClick={() => setIsContentModalOpen(false)} className="text-gray-400 hover:text-white cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveContent} className="space-y-4 text-xs max-h-[70vh] overflow-y-auto pr-1">
+              {contentFormError && (
+                <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">
+                  {contentFormError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-gray-400 mb-1">Section *</label>
+                <select
+                  value={contentForm.section}
+                  onChange={(e) => setContentForm({ ...contentForm, section: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                >
+                  {CONTENT_SECTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1">
+                  Title * <span className="text-gray-600 normal-case">(name / heading — e.g. college name, owner's name, stat label)</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={contentForm.title}
+                  onChange={(e) => setContentForm({ ...contentForm, title: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1">
+                  Subtitle <span className="text-gray-600 normal-case">(designation, role, badge, or program type)</span>
+                </label>
+                <input
+                  type="text"
+                  value={contentForm.subtitle}
+                  onChange={(e) => setContentForm({ ...contentForm, subtitle: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  value={contentForm.description}
+                  onChange={(e) => setContentForm({ ...contentForm, description: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1">Image URL <span className="text-gray-600 normal-case">(photo for owners/testimonials, logo for partners)</span></label>
+                <input
+                  type="text"
+                  value={contentForm.image_url}
+                  onChange={(e) => setContentForm({ ...contentForm, image_url: e.target.value })}
+                  placeholder="https://…"
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1">Link URL <span className="text-gray-600 normal-case">(optional — e.g. registration link for an event)</span></label>
+                <input
+                  type="text"
+                  value={contentForm.link_url}
+                  onChange={(e) => setContentForm({ ...contentForm, link_url: e.target.value })}
+                  placeholder="https://…"
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1">Location</label>
+                <input
+                  type="text"
+                  value={contentForm.location}
+                  onChange={(e) => setContentForm({ ...contentForm, location: e.target.value })}
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                />
+              </div>
+
+              {contentForm.section === 'event' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-400 mb-1">Event Start (date & time) *</label>
+                    <input
+                      type="datetime-local"
+                      value={contentForm.event_start}
+                      onChange={(e) => setContentForm({ ...contentForm, event_start: e.target.value })}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 mb-1">Event End (optional)</label>
+                    <input
+                      type="datetime-local"
+                      value={contentForm.event_end}
+                      onChange={(e) => setContentForm({ ...contentForm, event_end: e.target.value })}
+                      className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 mb-1">Display Order</label>
+                  <input
+                    type="number"
+                    value={contentForm.display_order}
+                    onChange={(e) => setContentForm({ ...contentForm, display_order: Number(e.target.value) })}
+                    className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]"
+                  />
+                </div>
+                <div className="flex items-end pb-2.5">
+                  <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={contentForm.is_active}
+                      onChange={(e) => setContentForm({ ...contentForm, is_active: e.target.checked })}
+                      className="rounded text-[#D4A72C] focus:ring-[#D4A72C]"
+                    />
+                    <span>Published (visible on the public site)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 mb-1">
+                  Extra Fields <span className="text-gray-600 normal-case">(JSON — e.g. features/technologies list, testimonial rating)</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={contentForm.extra}
+                  onChange={(e) => setContentForm({ ...contentForm, extra: e.target.value })}
+                  placeholder='{"features": ["Item one", "Item two"], "rating": 5}'
+                  className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#D4A72C]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsContentModalOpen(false)}
+                  className="px-5 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer transition-colors"
+                >
+                  {editingContentId ? 'Save Changes' : 'Add Item'}
+                </button>
+              </div>
             </form>
           </div>
         </div>
