@@ -51,10 +51,10 @@ COPY . /app/
 # Security: create the runtime user, then hand ownership of everything
 # (source + static/media mount points) to it in one pass, and only then
 # switch USER — this ordering is builder-agnostic.
-RUN mkdir -p /app/staticfiles /app/media && \
+RUN mkdir -p /app/staticfiles /app/media /tmp/gunicorn-worker && \
     groupadd --system appgroup && \
     useradd --system --gid appgroup appuser && \
-    chown -R appuser:appgroup /app
+    chown -R appuser:appgroup /app /tmp/gunicorn-worker
 
 USER appuser
 

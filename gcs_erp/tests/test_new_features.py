@@ -210,15 +210,26 @@ class PublicCertificateWebVerifyTests(APITestCase):
         content = res.content.decode('utf-8')
         self.assertIn('Revoked', content)
         self.assertIn('Test revocation', content)
-        # Owner request: even when revoked, the QR page still shows the
-        # holder's personal and course details (status stays REVOKED).
-        self.assertIn('student@example.com', content)
-        self.assertIn('WV001', content)
-        self.assertIn('Web Verify Batch', content)
-        self.assertIn('COMPLETED', content)
+        # Anonymous scan (the normal case — status stays REVOKED, never a
+        # 404) must NOT show the holder's personal/course details.
+        self.assertNotIn('student@example.com', content)
+        self.assertNotIn('WV001', content)
+        self.assertNotIn('Web Verify Batch', content)
         # Financial data must never appear on the public page
         self.assertNotIn('Invoice', content)
         self.assertNotIn('Payment', content)
+
+        # An authenticated ERP staff session viewing the same page gets the
+        # full personal/course details.
+        self.client.force_authenticate(user=self.admin)
+        staff_res = self.client.get(f'/verify/{cert.token}/')
+        staff_content = staff_res.content.decode('utf-8')
+        self.assertIn('student@example.com', staff_content)
+        self.assertIn('WV001', staff_content)
+        self.assertIn('Web Verify Batch', staff_content)
+        self.assertIn('COMPLETED', staff_content)
+        self.assertNotIn('Invoice', staff_content)
+        self.assertNotIn('Payment', staff_content)
 
     def test_04_web_verify_page_is_mobile_responsive(self):
         """The page should have viewport meta tag for mobile devices."""

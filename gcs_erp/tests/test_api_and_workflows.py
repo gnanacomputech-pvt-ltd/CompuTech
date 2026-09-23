@@ -209,7 +209,9 @@ class GCSErpFullWorkflowTests(APITestCase):
         self.assertTrue(bool(cert.pdf_file))
 
         # Test Public QR Verification Endpoint (Section 5.3)
-        # Unauthenticated request
+        # Unauthenticated request — anonymous scanners (the normal case: a
+        # phone camera scanning a printed QR) must only ever see the
+        # non-sensitive fields.
         self.client.logout()
         verify_url = f"/api/v1/public/certificates/verify/{cert.token}/"
         res = self.client.get(verify_url)
@@ -223,28 +225,47 @@ class GCSErpFullWorkflowTests(APITestCase):
         self.assertEqual(data['status'], 'ISSUED')
         self.assertTrue(data['is_valid'])
 
-        # Personal details of the certificate holder are present on scan
-        # (owner request: QR scan shows full personal + course details)
-        self.assertEqual(data['email'], self.student_user.email)
-        self.assertEqual(data['phone'], self.student_user.phone)
-        self.assertEqual(data['student_id'], self.student_profile.business_id)
-        self.assertEqual(data['usn'], self.student_profile.usn)
-        self.assertEqual(data['degree'], self.student_profile.degree)
-        self.assertEqual(data['semester'], self.student_profile.semester)
-        self.assertIn('branch', data)
-
-        # Course details are present on scan
-        self.assertEqual(data['batch'], self.batch.name)
-        self.assertEqual(data['enrollment_status'], 'COMPLETED')
-        self.assertIn('enrolled_on', data)
-        self.assertIn('completed_on', data)
-        self.assertIn('attendance_percentage', data)
-
-        # Financial data is never exposed publicly
+        # Verify NEVER exposes sensitive fields to an anonymous scanner
+        self.assertNotIn('email', data)
+        self.assertNotIn('phone', data)
+        self.assertNotIn('student_id', data)
+        self.assertNotIn('usn', data)
+        self.assertNotIn('degree', data)
+        self.assertNotIn('semester', data)
+        self.assertNotIn('branch', data)
+        self.assertNotIn('batch', data)
+        self.assertNotIn('enrollment_status', data)
+        self.assertNotIn('attendance_percentage', data)
         self.assertNotIn('payment', data)
         self.assertNotIn('transaction_id', data)
         self.assertNotIn('invoice', data)
         self.assertNotIn('fees', data)
+
+        # Authenticated ERP staff hitting the same endpoint additionally get
+        # the holder's personal and course details (still never financial data).
+        self.client.force_authenticate(user=self.admin)
+        staff_res = self.client.get(verify_url)
+        self.assertEqual(staff_res.status_code, status.HTTP_200_OK)
+        staff_data = staff_res.json()['data']
+
+        self.assertEqual(staff_data['email'], self.student_user.email)
+        self.assertEqual(staff_data['phone'], self.student_user.phone)
+        self.assertEqual(staff_data['student_id'], self.student_profile.business_id)
+        self.assertEqual(staff_data['usn'], self.student_profile.usn)
+        self.assertEqual(staff_data['degree'], self.student_profile.degree)
+        self.assertEqual(staff_data['semester'], self.student_profile.semester)
+        self.assertIn('branch', staff_data)
+
+        self.assertEqual(staff_data['batch'], self.batch.name)
+        self.assertEqual(staff_data['enrollment_status'], 'COMPLETED')
+        self.assertIn('enrolled_on', staff_data)
+        self.assertIn('completed_on', staff_data)
+        self.assertIn('attendance_percentage', staff_data)
+
+        self.assertNotIn('payment', staff_data)
+        self.assertNotIn('transaction_id', staff_data)
+        self.assertNotIn('invoice', staff_data)
+        self.assertNotIn('fees', staff_data)
 
     def test_05_revocation_and_reissue_preserves_traceability(self):
         """

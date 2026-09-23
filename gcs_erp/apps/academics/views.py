@@ -5,7 +5,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.shortcuts import get_object_or_404
 
-from apps.common.permissions import IsERPStaff
+from apps.common.permissions import IsERPStaff, IsFullAccessStaff, AttendanceAccess, AssessmentAccess
 from apps.academics.models import (
     AcademicProject, Internship, Session, Attendance,
     Assignment, AssignmentSubmission, Assessment, AssessmentMark,
@@ -31,7 +31,8 @@ class AcademicProjectViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [permissions.AllowAny()]
-        return [IsERPStaff()]
+        # No domain owner among Medium-access roles — Full-access staff only.
+        return [IsFullAccessStaff()]
 
 
 class InternshipViewSet(viewsets.ModelViewSet):
@@ -44,13 +45,14 @@ class InternshipViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [permissions.AllowAny()]
-        return [IsERPStaff()]
+        return [IsFullAccessStaff()]
 
 
 class SessionViewSet(viewsets.ModelViewSet):
     queryset = Session.objects.select_related('batch', 'trainer__user').all()
     serializer_class = SessionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Sessions are how Trainer/Mentor run attendance — same domain.
+    permission_classes = [AttendanceAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['batch', 'session_date', 'is_completed']
     search_fields = ['topic']
@@ -59,7 +61,9 @@ class SessionViewSet(viewsets.ModelViewSet):
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.select_related('session', 'enrollment__student__user').all()
     serializer_class = AttendanceSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Read: IsAuthenticated + get_queryset below (a student sees only their
+    # own attendance). Write: Full-access staff or Trainer/Mentor.
+    permission_classes = [AttendanceAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['session', 'enrollment', 'status']
 
@@ -69,7 +73,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             return self.queryset.filter(enrollment__student__user=user)
         return self.queryset
 
-    @action(detail=False, methods=['post'], url_path='bulk-mark', permission_classes=[IsERPStaff])
+    @action(detail=False, methods=['post'], url_path='bulk-mark', permission_classes=[AttendanceAccess])
     def bulk_mark(self, request):
         """
         Bulk mark attendance for an entire session.
@@ -107,7 +111,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.select_related('batch').all()
     serializer_class = AssignmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Setting assignments is part of Trainer/Mentor's grading domain.
+    permission_classes = [AssessmentAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['batch']
     search_fields = ['title']
@@ -130,7 +135,8 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
 class AssessmentViewSet(viewsets.ModelViewSet):
     queryset = Assessment.objects.select_related('batch').all()
     serializer_class = AssessmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Write: Full-access staff or Trainer/Mentor (defines/grades assessments).
+    permission_classes = [AssessmentAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['batch', 'assessment_type']
     search_fields = ['title']
@@ -139,7 +145,9 @@ class AssessmentViewSet(viewsets.ModelViewSet):
 class AssessmentMarkViewSet(viewsets.ModelViewSet):
     queryset = AssessmentMark.objects.select_related('assessment', 'enrollment__student__user').all()
     serializer_class = AssessmentMarkSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Read: IsAuthenticated + get_queryset below (student sees own marks).
+    # Write: Full-access staff or Trainer/Mentor.
+    permission_classes = [AssessmentAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['assessment', 'enrollment', 'is_passed']
 

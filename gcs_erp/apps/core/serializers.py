@@ -160,6 +160,43 @@ class EmployeeSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
+class EmployeeCreateSerializer(serializers.Serializer):
+    """
+    Employee.user is a required OneToOneField, so adding a staff member means
+    creating the login account and the employee profile together. Mirrors
+    UserRegistrationSerializer's validation style, plus the employee fields
+    and the ERP role to grant (IsERPStaff.STAFF_ROLES, minus SUPER_ADMIN —
+    that one stays reserved for createsuperuser).
+    """
+    ASSIGNABLE_ROLES = (
+        'ADMIN', 'HR', 'ACCOUNTS', 'ACADEMIC_COORDINATOR', 'INTERNSHIP_COORDINATOR',
+        'PROJECT_COORDINATOR', 'TRAINER', 'MENTOR', 'PLACEMENT_OFFICER', 'CONTENT_MANAGER',
+    )
+
+    full_name = serializers.CharField(required=True, max_length=255)
+    email = serializers.EmailField(required=True)
+    phone = serializers.CharField(required=False, allow_blank=True, max_length=20)
+    password = serializers.CharField(required=True, min_length=8, write_only=True)
+    role = serializers.ChoiceField(choices=ASSIGNABLE_ROLES, required=True)
+    employee_id = serializers.CharField(required=True, max_length=50)
+    designation = serializers.CharField(required=True, max_length=100)
+    department = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(), required=False, allow_null=True
+    )
+    joining_date = serializers.DateField(required=False, allow_null=True)
+
+    def validate_email(self, value):
+        value = value.lower().strip()
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("An account with this email address already exists.")
+        return value
+
+    def validate_employee_id(self, value):
+        if Employee.objects.filter(employee_id=value).exists():
+            raise serializers.ValidationError("An employee with this ID already exists.")
+        return value
+
+
 class EnrollmentSerializer(serializers.ModelSerializer):
     student_name = serializers.ReadOnlyField(source='student.user.full_name')
     student_usn = serializers.ReadOnlyField(source='student.usn')

@@ -115,6 +115,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     'drf_spectacular',
+    'django_celery_beat',  # CELERY_BEAT_SCHEDULER below needs its models registered
 
     # GCS ERP Domain Apps
     'apps.common',
@@ -168,12 +169,22 @@ AUTH_USER_MODEL = 'core.User'
 # Local dev: SQLite fallback when DATABASE_URL is absent
 DATABASE_URL = os.getenv('DATABASE_URL')
 if DATABASE_URL:
+    # Defaults to "require SSL outside DEBUG" (RDS always supports it), but
+    # explicit DB_SSL_REQUIRED lets a non-DEBUG deployment against a plain
+    # containerized Postgres (no SSL configured, e.g. infra/aws-minimal) opt
+    # out without weakening DEBUG itself.
+    db_ssl_required_env = os.getenv('DB_SSL_REQUIRED')
+    if db_ssl_required_env is not None:
+        db_ssl_required = db_ssl_required_env.lower() in ('true', '1', 't')
+    else:
+        db_ssl_required = not DEBUG
+
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
             conn_max_age=0,              # RDS Proxy manages connections; disable client-side pooling
             conn_health_checks=True,
-            ssl_require=True if not DEBUG else False,
+            ssl_require=db_ssl_required,
         )
     }
 else:

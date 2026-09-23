@@ -8,7 +8,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponse, Http404
 
-from apps.common.permissions import IsERPStaff
+from apps.common.permissions import IsERPStaff, FinanceAccess, FinanceStaffWriteAccess
 from apps.core.models import Enrollment
 from apps.finance.models import FeeStructure, Invoice, Payment, FeeReceipt, Certificate
 from apps.finance.serializers import (
@@ -25,18 +25,35 @@ class PublicCertificateThrottle(AnonRateThrottle):
     rate = '60/minute'
 
 
+def _is_privileged_verifier(request):
+    """
+    True only for an authenticated ERP staff session (same role set as
+    IsERPStaff, apps/common/permissions.py). The verify endpoints stay
+    permission_classes=[AllowAny] so anonymous scans still work, but
+    JWTAuthentication/SessionAuthentication still populate request.user
+    when a valid session/token is present — this just decides how much of
+    the payload that viewer earns, not whether they can view it at all.
+    """
+    user = getattr(request, 'user', None)
+    return bool(user and user.is_authenticated and IsERPStaff().has_permission(request, None))
+
+
 class PublicCertificateVerificationView(APIView):
     """
     Section 5.3 Public Certificate Verification:
     A single unauthenticated, rate-limited endpoint, isolated in its own view
-    so it can never accidentally expose authenticated data.
+    so it can never accidentally expose authenticated data to the general
+    public. Anonymous scans get only non-sensitive fields (certificate
+    number, student name, program, institution, status, issue date) —
+    never phone, email, DOB, address, payment details, or government ID.
+
+    Authenticated ERP staff hitting the same endpoint (e.g. from the ERP
+    dashboard) additionally get the holder's personal and course details,
+    so staff verifying a certificate in person don't need a second lookup.
+    Financial data (invoices, payments, fees) is never included here for
+    anyone, staff included.
     GET /api/v1/public/certificates/verify/:token
 
-    Per owner request, the payload carries the certificate holder's full
-    personal details (name, email, phone, student ID, USN, degree, semester,
-    branch) and course details (program, batch, enrollment status, dates,
-    attendance) so a QR scan confirms everything the certificate stands for.
-    Financial data (invoices, payments, fees) is never exposed.
     Revocation keeps the QR live but changes its resolved status to REVOKED (never a 404).
     """
     permission_classes = [permissions.AllowAny]
@@ -75,10 +92,6 @@ class PublicCertificateVerificationView(APIView):
 
         enrollment = cert.enrollment
         student = enrollment.student
-        try:
-            attendance_percentage = float(enrollment.academic_progress.attendance_percentage)
-        except Exception:
-            attendance_percentage = 0.0
 
         payload = {
             "certificate_number": cert.certificate_number,
@@ -90,21 +103,29 @@ class PublicCertificateVerificationView(APIView):
             "is_valid": is_valid,
             "verification_message": msg,
             "revocation_reason": revocation_reason,
-            # ---- Personal details ----
-            "student_id": student.business_id,
-            "usn": student.usn or "",
-            "email": student.user.email,
-            "phone": student.user.phone or "",
-            "degree": student.degree or "",
-            "semester": student.semester or 0,
-            "branch": student.branch or "",
-            # ---- Course details ----
-            "batch": enrollment.batch.name,
-            "enrollment_status": enrollment.status,
-            "enrolled_on": enrollment.enrolled_at.date(),
-            "completed_on": enrollment.completed_at.date() if enrollment.completed_at else None,
-            "attendance_percentage": attendance_percentage,
         }
+
+        if _is_privileged_verifier(request):
+            try:
+                attendance_percentage = float(enrollment.academic_progress.attendance_percentage)
+            except Exception:
+                attendance_percentage = 0.0
+            payload.update({
+                # ---- Personal details (ERP staff only) ----
+                "student_id": student.business_id,
+                "usn": student.usn or "",
+                "email": student.user.email,
+                "phone": student.user.phone or "",
+                "degree": student.degree or "",
+                "semester": student.semester or 0,
+                "branch": student.branch or "",
+                # ---- Course details (ERP staff only) ----
+                "batch": enrollment.batch.name,
+                "enrollment_status": enrollment.status,
+                "enrolled_on": enrollment.enrolled_at.date(),
+                "completed_on": enrollment.completed_at.date() if enrollment.completed_at else None,
+                "attendance_percentage": attendance_percentage,
+            })
 
         serializer = PublicCertificateVerificationSerializer(payload)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -117,8 +138,13 @@ class PublicCertificateWebVerificationView(APIView):
     rather than a JSON API. Mobile-responsive, theme-aware, branded for GCS.
     GET /verify/:token/
 
-    Per owner request the page shows the holder's full personal and course
-    details (same fields as the JSON API). Financial data stays private.
+    Same role-based payload as PublicCertificateVerificationView: anonymous
+    visitors (the normal case — a phone camera scanning a printed QR has no
+    session) see only non-sensitive fields. An ERP staff member who happens
+    to have an authenticated session in the same browser additionally sees
+    personal/course details. The template only renders that section when
+    `certificate.student_id` is present, so no template change was needed
+    beyond this view deciding what to put in the context.
     Public, unauthenticated, rate-limited via nginx.
     """
     permission_classes = [permissions.AllowAny]
@@ -138,10 +164,6 @@ class PublicCertificateWebVerificationView(APIView):
             ).get(token=token)
             enrollment = cert.enrollment
             student = enrollment.student
-            try:
-                attendance_percentage = float(enrollment.academic_progress.attendance_percentage)
-            except Exception:
-                attendance_percentage = 0.0
 
             certificate_data = {
                 'certificate_number': cert.certificate_number,
@@ -159,21 +181,29 @@ class PublicCertificateWebVerificationView(APIView):
                 ),
                 'revocation_reason': cert.revocation_reason if cert.status == 'REVOKED' else '',
                 'verify_url': request.build_absolute_uri('/verify/'),
-                # ---- Personal details ----
-                'student_id': student.business_id,
-                'usn': student.usn or '',
-                'email': student.user.email,
-                'phone': student.user.phone or '',
-                'degree': student.degree or '',
-                'semester': student.semester or 0,
-                'branch': student.branch or '',
-                # ---- Course details ----
-                'batch': enrollment.batch.name,
-                'enrollment_status': enrollment.status,
-                'enrolled_on': enrollment.enrolled_at.date(),
-                'completed_on': enrollment.completed_at.date() if enrollment.completed_at else None,
-                'attendance_percentage': attendance_percentage,
             }
+
+            if _is_privileged_verifier(request):
+                try:
+                    attendance_percentage = float(enrollment.academic_progress.attendance_percentage)
+                except Exception:
+                    attendance_percentage = 0.0
+                certificate_data.update({
+                    # ---- Personal details (ERP staff only) ----
+                    'student_id': student.business_id,
+                    'usn': student.usn or '',
+                    'email': student.user.email,
+                    'phone': student.user.phone or '',
+                    'degree': student.degree or '',
+                    'semester': student.semester or 0,
+                    'branch': student.branch or '',
+                    # ---- Course details (ERP staff only) ----
+                    'batch': enrollment.batch.name,
+                    'enrollment_status': enrollment.status,
+                    'enrolled_on': enrollment.enrolled_at.date(),
+                    'completed_on': enrollment.completed_at.date() if enrollment.completed_at else None,
+                    'attendance_percentage': attendance_percentage,
+                })
         except Certificate.DoesNotExist:
             not_found = True
 
@@ -190,7 +220,10 @@ class CertificateViewSet(viewsets.ModelViewSet):
         'enrollment__institution'
     ).all()
     serializer_class = CertificateSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Read: IsAuthenticated + get_queryset below (student/coordinator
+    # scoping). Write: Full-access staff or Accounts — same rule the
+    # issue/revoke/reissue actions below enforce individually.
+    permission_classes = [FinanceStaffWriteAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'enrollment']
     search_fields = ['certificate_number', 'enrollment__student__user__full_name']
@@ -219,7 +252,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
             'reasons': result['reasons']
         })
 
-    @action(detail=False, methods=['post'], url_path='issue', permission_classes=[IsERPStaff])
+    @action(detail=False, methods=['post'], url_path='issue', permission_classes=[FinanceStaffWriteAccess])
     def issue(self, request):
         enrollment_id = request.data.get('enrollment_id')
         title = request.data.get('title', 'Certificate of Completion')
@@ -253,7 +286,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
             "status": "PENDING"
         }, status=status.HTTP_202_ACCEPTED)
 
-    @action(detail=True, methods=['post'], url_path='revoke', permission_classes=[IsERPStaff])
+    @action(detail=True, methods=['post'], url_path='revoke', permission_classes=[FinanceStaffWriteAccess])
     def revoke(self, request, pk=None):
         cert = self.get_object()
         reason = request.data.get('reason', 'Administrative decision')
@@ -261,7 +294,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
         serializer = CertificateSerializer(cert)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'], url_path='reissue', permission_classes=[IsERPStaff])
+    @action(detail=True, methods=['post'], url_path='reissue', permission_classes=[FinanceStaffWriteAccess])
     def reissue(self, request, pk=None):
         cert = self.get_object()
         reason = request.data.get('reason', 'Correction requested')
@@ -285,7 +318,8 @@ class CertificateViewSet(viewsets.ModelViewSet):
 class FeeStructureViewSet(viewsets.ModelViewSet):
     queryset = FeeStructure.objects.select_related('program', 'batch').all()
     serializer_class = FeeStructureSerializer
-    permission_classes = [IsERPStaff]
+    # Fee templates aren't per-student data — no student read needed.
+    permission_classes = [FinanceAccess]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['program', 'batch']
 
@@ -293,7 +327,9 @@ class FeeStructureViewSet(viewsets.ModelViewSet):
 class InvoiceViewSet(viewsets.ModelViewSet):
     queryset = Invoice.objects.select_related('enrollment__student__user', 'enrollment__program').prefetch_related('payments').all()
     serializer_class = InvoiceSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Read: IsAuthenticated + get_queryset below (student sees own invoices).
+    # Write: Full-access staff or Accounts.
+    permission_classes = [FinanceStaffWriteAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['status', 'enrollment']
     search_fields = ['invoice_number', 'enrollment__student__user__full_name']
@@ -308,7 +344,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.select_related('invoice__enrollment__student__user').all()
     serializer_class = PaymentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [FinanceStaffWriteAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['status', 'payment_mode', 'invoice']
     search_fields = ['transaction_id']

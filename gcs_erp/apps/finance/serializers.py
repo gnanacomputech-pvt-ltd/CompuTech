@@ -58,14 +58,21 @@ class CertificateSerializer(serializers.ModelSerializer):
 
 class PublicCertificateVerificationSerializer(serializers.Serializer):
     """
-    QR-scan verification payload (product decision — owner request):
-    Exposes the certificate holder's full PERSONAL and COURSE details so anyone
-    scanning the QR on a physical certificate can confirm everything it stands
-    for. Financial data (invoices, payments, fees) remains strictly private.
+    QR-scan verification payload — role-based (Section 5.3):
 
-    Personal : name, email, phone, student ID, USN, degree, semester, branch
-    Course   : program, batch, enrollment status, enrolled/completed dates,
-               attendance percentage
+    Anonymous / public scan -> only the non-sensitive fields below the
+    "Personal details" marker are ever populated: certificate_number,
+    student_name, program, institution, status, issue_date, validity. This
+    is the only payload anyone without an ERP-staff session ever receives,
+    matching Section 5.3's "never exposes phone, email, DOB, address,
+    payment details, or government ID."
+
+    Authenticated ERP staff (IsERPStaff — see views.py) additionally get the
+    personal (email, phone, USN, degree, semester, branch) and course
+    (batch, enrollment status, dates, attendance) fields, so staff scanning
+    a certificate in the field can confirm the holder's full record without
+    a separate lookup. Financial data (invoices, payments, fees) is never
+    included here regardless of role.
     """
     certificate_number = serializers.CharField()
     student_name = serializers.CharField()
@@ -76,17 +83,17 @@ class PublicCertificateVerificationSerializer(serializers.Serializer):
     is_valid = serializers.BooleanField()
     verification_message = serializers.CharField()
     revocation_reason = serializers.CharField(allow_blank=True, required=False)
-    # ---- Personal details ----
-    student_id = serializers.CharField()
-    usn = serializers.CharField()
-    email = serializers.EmailField()
-    phone = serializers.CharField(allow_blank=True)
-    degree = serializers.CharField(allow_blank=True)
-    semester = serializers.IntegerField()
-    branch = serializers.CharField(allow_blank=True)
-    # ---- Course details ----
-    batch = serializers.CharField()
-    enrollment_status = serializers.CharField()
-    enrolled_on = serializers.DateField()
-    completed_on = serializers.DateField(allow_null=True)
-    attendance_percentage = serializers.FloatField()
+    # ---- Personal details (ERP staff only) ----
+    student_id = serializers.CharField(required=False)
+    usn = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
+    phone = serializers.CharField(allow_blank=True, required=False)
+    degree = serializers.CharField(allow_blank=True, required=False)
+    semester = serializers.IntegerField(required=False)
+    branch = serializers.CharField(allow_blank=True, required=False)
+    # ---- Course details (ERP staff only) ----
+    batch = serializers.CharField(required=False)
+    enrollment_status = serializers.CharField(required=False)
+    enrolled_on = serializers.DateField(required=False)
+    completed_on = serializers.DateField(allow_null=True, required=False)
+    attendance_percentage = serializers.FloatField(required=False)

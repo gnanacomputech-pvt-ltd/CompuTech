@@ -2,12 +2,19 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import RedirectView
 from drf_spectacular.views import (
     SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 )
 from apps.finance.views import PublicCertificateWebVerificationView
 
 urlpatterns = [
+    # This is an API-only backend — the actual website is the separate React
+    # frontend (gcs-erp-frontend). Visiting the bare domain root here is
+    # someone sanity-checking the server, not a real page; send them
+    # somewhere useful instead of a bare 404.
+    path('', RedirectView.as_view(url='/api/docs/', permanent=False)),
+
     # Admin Interface
     path('admin/', admin.site.urls),
 

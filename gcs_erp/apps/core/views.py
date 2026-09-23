@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.views import APIView
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -11,19 +12,23 @@ from django.utils.encoding import force_bytes, force_str
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
 from django.conf import settings
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Sum, Count, Q
 
-from apps.common.permissions import IsSuperAdmin, IsERPStaff
+from apps.common.permissions import (
+    IsSuperAdmin, IsERPStaff, IsFullAccessStaff, ModuleAccess, StaffWriteAccess,
+)
 from apps.core.models import (
-    User, Institution, Department, Program, Batch, Student, Employee, Enrollment
+    User, Institution, Department, Program, Batch, Student, Employee, Enrollment,
+    Role, UserRole,
 )
 from apps.core.serializers import (
     CustomTokenObtainPairSerializer, ChangePasswordSerializer,
     PasswordResetSerializer, PasswordResetConfirmSerializer,
     UserRegistrationSerializer,
     UserSerializer, InstitutionSerializer, DepartmentSerializer, ProgramSerializer,
-    BatchSerializer, StudentSerializer, EmployeeSerializer, EnrollmentSerializer
+    BatchSerializer, StudentSerializer, EmployeeSerializer, EmployeeCreateSerializer,
+    EnrollmentSerializer
 )
 
 
@@ -209,7 +214,8 @@ class PasswordResetConfirmView(APIView):
 class InstitutionViewSet(viewsets.ModelViewSet):
     queryset = Institution.objects.all()
     serializer_class = InstitutionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # No domain owner — any ERP staff can read, only Full-access roles write.
+    permission_classes = [ModuleAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ['name', 'code', 'city']
     ordering_fields = ['name', 'created_at']
@@ -218,7 +224,7 @@ class InstitutionViewSet(viewsets.ModelViewSet):
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [ModuleAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['institution']
     search_fields = ['name', 'code']
@@ -227,7 +233,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class ProgramViewSet(viewsets.ModelViewSet):
     queryset = Program.objects.all()
     serializer_class = ProgramSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [ModuleAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['program_type']
     search_fields = ['title', 'code']
@@ -236,7 +242,7 @@ class ProgramViewSet(viewsets.ModelViewSet):
 class BatchViewSet(viewsets.ModelViewSet):
     queryset = Batch.objects.all()
     serializer_class = BatchSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [ModuleAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['program', 'institution', 'status']
     search_fields = ['name', 'business_id']
@@ -249,7 +255,11 @@ class StudentViewSet(viewsets.ModelViewSet):
         'enrollments__program', 'enrollments__batch', 'enrollments__academic_progress'
     ).all()
     serializer_class = StudentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Read: IsAuthenticated + get_queryset below (a student only ever sees
+    # their own profile, a coordinator only their institution's students).
+    # Write: Full-access staff only — editing a student's academic record
+    # isn't any Medium-access role's domain.
+    permission_classes = [StaffWriteAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['institution', 'degree', 'semester']
     search_fields = ['user__full_name', 'user__email', 'business_id', 'usn']
@@ -268,10 +278,55 @@ class StudentViewSet(viewsets.ModelViewSet):
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.select_related('user', 'department').all()
     serializer_class = EmployeeSerializer
-    permission_classes = [IsERPStaff]
+    # Personnel records are Full-access-tier only — Medium-access staff
+    # (Trainer, Mentor, Accounts, ...) don't browse the employee directory.
+    permission_classes = [IsFullAccessStaff]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ['department']
     search_fields = ['user__full_name', 'employee_id']
+
+    @action(detail=False, methods=['post'], url_path='create-with-user', permission_classes=[IsSuperAdmin])
+    def create_with_user(self, request):
+        """
+        Employee.user is a required OneToOneField — a plain POST /employees/
+        can only link an *existing* user. This endpoint creates the login
+        account and the employee profile together in one atomic step.
+        Super-Admin-only: this is the one place a new person gets an ERP
+        role granted, so it stays outside the Full-access tier.
+        """
+        serializer = EmployeeCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                email=data['email'],
+                password=data['password'],
+                full_name=data['full_name'],
+                phone=data.get('phone', ''),
+                is_staff=True,
+                is_active=True,
+                is_verified=True,
+            )
+            role, _ = Role.objects.get_or_create(
+                code=data['role'],
+                defaults={'name': data['role'].replace('_', ' ').title()}
+            )
+            UserRole.objects.get_or_create(user=user, role=role)
+
+            employee = Employee.objects.create(
+                user=user,
+                employee_id=data['employee_id'],
+                designation=data['designation'],
+                department=data.get('department'),
+                joining_date=data.get('joining_date'),
+                created_by=request.user,
+            )
+
+        return Response(
+            EmployeeSerializer(employee).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
@@ -281,7 +336,10 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     """
     queryset = Enrollment.objects.select_related('student__user', 'program', 'batch', 'institution').all()
     serializer_class = EnrollmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # Read: IsAuthenticated + get_queryset below (self/institution scoping).
+    # Write (create/approve/etc.): Full-access staff only — enrollment
+    # approval is coordinator-level, not any Medium-access role's domain.
+    permission_classes = [StaffWriteAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['program', 'batch', 'institution', 'status', 'coordinator_approval']
     search_fields = ['business_id', 'student__user__full_name', 'student__usn']
