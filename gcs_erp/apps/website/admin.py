@@ -1,5 +1,5 @@
 from django.contrib import admin
-from apps.website.models import ContactInquiry, StudentRegistrationInquiry
+from apps.website.models import ContactInquiry, StudentRegistrationInquiry, SiteContent
 
 
 @admin.register(ContactInquiry)
@@ -22,6 +22,16 @@ class ContactInquiryAdmin(admin.ModelAdmin):
         }),
     )
     list_per_page = 30
+
+
+@admin.register(SiteContent)
+class SiteContentAdmin(admin.ModelAdmin):
+    list_display = ['section', 'title', 'subtitle', 'display_order', 'is_active', 'updated_at']
+    list_filter = ['section', 'is_active']
+    search_fields = ['title', 'subtitle', 'description']
+    ordering = ['section', 'display_order']
+    readonly_fields = ['id', 'created_at', 'updated_at', 'created_by']
+    list_per_page = 50
 
 
 @admin.register(StudentRegistrationInquiry)

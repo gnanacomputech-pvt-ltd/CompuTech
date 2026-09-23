@@ -5,11 +5,13 @@ from apps.website.views import (
     PublicStudentRegistrationSubmitView,
     ContactInquiryViewSet,
     StudentRegistrationInquiryViewSet,
+    SiteContentViewSet,
 )
 
 router = DefaultRouter()
 router.register(r'staff/contact-inquiries', ContactInquiryViewSet, basename='contact-inquiry')
 router.register(r'staff/registration-inquiries', StudentRegistrationInquiryViewSet, basename='registration-inquiry')
+router.register(r'content', SiteContentViewSet, basename='site-content')
 
 urlpatterns = [
     # Public unauthenticated form submission endpoints

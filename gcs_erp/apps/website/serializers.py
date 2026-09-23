@@ -1,6 +1,6 @@
 import re
 from rest_framework import serializers
-from apps.website.models import ContactInquiry, StudentRegistrationInquiry
+from apps.website.models import ContactInquiry, StudentRegistrationInquiry, SiteContent
 
 
 PHONE_RE = re.compile(r'^[0-9+\s\-]{10,15}$')
@@ -75,3 +75,16 @@ class StudentRegistrationInquirySerializer(serializers.ModelSerializer):
         model = StudentRegistrationInquiry
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# ---------------------------------------------------------------------------
+# Site Content (marketing-site CMS)
+# ---------------------------------------------------------------------------
+
+class SiteContentSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.ReadOnlyField(source='created_by.full_name')
+
+    class Meta:
+        model = SiteContent
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']

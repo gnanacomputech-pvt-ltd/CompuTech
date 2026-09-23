@@ -1,17 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
-import { 
-  Menu, X, ChevronDown, ShieldCheck, GraduationCap, Building2
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { Menu, X, UserCircle2, LogOut } from 'lucide-react';
 import { Logo } from './Logo';
-import { Button } from './Button';
+import { useAuth } from '../lib/auth/AuthContext';
+import { portalHomePath } from '../lib/auth/roles';
 
 export const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isPortalsOpen, setIsPortalsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const location = useLocation();
-  const dropdownRef = useRef(null);
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -20,27 +18,6 @@ export const Navbar = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsPortalsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
-  }, []);
-
-  // Close mobile drawer and dropdown on route change
-  useEffect(() => {
-    setIsOpen(false);
-    setIsPortalsOpen(false);
-  }, [location]);
 
   const navLinks = [
     { name: 'Home', path: '/' },
@@ -54,21 +31,26 @@ export const Navbar = () => {
     { name: 'Contact', path: '/contact' },
   ];
 
-  const portalLinks = [
-    { name: 'ERP Admin', path: '/erp/dashboard', icon: ShieldCheck },
-    { name: 'Student Portal', path: '/student/dashboard', icon: GraduationCap },
-    { name: 'Institution Portal', path: '/institution/dashboard', icon: Building2 },
-  ];
+  // One entry point that adapts to who's signed in, instead of asking the
+  // visitor to pick a portal up front — the backend already knows their
+  // role (see lib/auth/roles.js), so it just routes them there.
+  const dashboardPath = portalHomePath(user);
+
+  const handleLogout = async () => {
+    await logout();
+    setIsOpen(false);
+    navigate('/login');
+  };
 
   return (
     <header className={`sticky top-0 z-50 transition-all duration-300 shadow-xl ${
-      scrolled 
-        ? 'bg-[#17181A]/95 backdrop-blur-md border-b border-[#D4A72C]/30 py-2.5 shadow-2xl' 
+      scrolled
+        ? 'bg-[#17181A]/95 backdrop-blur-md border-b border-[#D4A72C]/30 py-2.5 shadow-2xl'
         : 'bg-[#17181A] border-b border-[#222326] py-3.5 shadow-lg'
     }`}>
       <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
         <div className="flex items-center justify-between gap-4 lg:gap-6 xl:gap-8">
-          
+
           {/* Logo */}
           <div className="flex-shrink-0">
             <Logo variant="dark" />
@@ -83,7 +65,7 @@ export const Navbar = () => {
                 className={({ isActive }) =>
                   `px-3 py-1.5 xl:px-3.5 xl:py-2 text-[13px] xl:text-[14px] font-semibold rounded-lg transition-all duration-200 whitespace-nowrap ${
                     isActive
-                      ? 'text-[#ffcc00] bg-blue-600 font-bold shadow-md'
+                      ? 'text-[#17181A] bg-[#ffcc00] font-bold shadow-md'
                       : 'text-[#ffcc00]/80 hover:text-[#ffcc00] hover:bg-white/5'
                   }`
                 }
@@ -94,45 +76,39 @@ export const Navbar = () => {
             ))}
           </nav>
 
-          {/* Desktop Right CTA: Portals & Enquire Button */}
+          {/* Desktop Right CTA: single role-based entry point + Enquire */}
           <div className="hidden lg:flex items-center gap-2.5 xl:gap-3.5 flex-shrink-0">
-            <div className="relative flex-shrink-0" ref={dropdownRef}>
-              <button
-                type="button"
-                onClick={() => setIsPortalsOpen(!isPortalsOpen)}
-                className={`text-xs xl:text-sm font-semibold px-3 py-1.5 xl:px-3.5 xl:py-2 rounded-lg border transition-all flex items-center gap-1.5 bg-[#222326] shadow-sm cursor-pointer select-none ${
-                  isPortalsOpen
-                    ? 'text-[#ffcc00] border-[#ffcc00] bg-white/10'
-                    : 'text-[#ffcc00]/90 border-[#D4A72C]/30 hover:text-[#ffcc00] hover:border-[#ffcc00]'
-                }`}
-                aria-expanded={isPortalsOpen}
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  to={dashboardPath}
+                  className="text-xs xl:text-sm font-semibold px-3 py-1.5 xl:px-3.5 xl:py-2 rounded-lg border border-[#D4A72C]/30 bg-[#222326] text-[#ffcc00]/90 hover:text-[#ffcc00] hover:border-[#ffcc00] transition-all flex items-center gap-1.5"
+                >
+                  <UserCircle2 className="w-4 h-4 flex-shrink-0" />
+                  <span>{user?.full_name?.split(' ')[0] || 'Dashboard'}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="Log out"
+                  className="p-2 rounded-lg border border-[#D4A72C]/30 bg-[#222326] text-[#ffcc00]/70 hover:text-[#ffcc00] hover:border-[#ffcc00] transition-all cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                className="text-xs xl:text-sm font-semibold px-4 py-1.5 xl:px-4 xl:py-2 rounded-lg border border-[#D4A72C]/30 bg-[#222326] text-[#ffcc00]/90 hover:text-[#ffcc00] hover:border-[#ffcc00] transition-all flex items-center gap-1.5"
               >
-                <span>Portals</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0 ${
-                  isPortalsOpen ? 'rotate-180 text-[#ffcc00]' : 'text-[#ffcc00]'
-                }`} />
-              </button>
-
-              {isPortalsOpen && (
-                <div className="absolute right-0 top-full mt-2 w-52 bg-[#17181A] border border-[#D4A72C]/30 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                  {portalLinks.map((portal) => (
-                    <Link
-                      key={portal.path}
-                      to={portal.path}
-                      onClick={() => setIsPortalsOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2.5 text-xs xl:text-sm font-medium text-gray-200 hover:text-[#ffcc00] hover:bg-white/10 rounded-lg transition-colors"
-                    >
-                      <portal.icon className="w-4 h-4 text-[#ffcc00] flex-shrink-0" />
-                      <span>{portal.name}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+                <UserCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span>Login</span>
+              </Link>
+            )}
 
             <Link
               to="/register"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs xl:text-sm px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-1.5 active:scale-95"
+              className="bg-[#ffcc00] hover:bg-[#e6b800] text-[#17181A] font-extrabold text-xs xl:text-sm px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-1.5 active:scale-95"
             >
               <span>Enquire</span>
             </Link>
@@ -140,9 +116,9 @@ export const Navbar = () => {
 
           {/* Mobile Hamburger Button */}
           <div className="flex lg:hidden items-center space-x-2">
-            <Link 
-              to="/register" 
-              className="bg-blue-600 text-white font-extrabold text-xs px-3 py-1.5 rounded-lg"
+            <Link
+              to="/register"
+              className="bg-[#ffcc00] text-[#17181A] font-extrabold text-xs px-3 py-1.5 rounded-lg"
             >
               Enquire
             </Link>
@@ -166,10 +142,11 @@ export const Navbar = () => {
               <NavLink
                 key={link.path}
                 to={link.path}
+                onClick={() => setIsOpen(false)}
                 className={({ isActive }) =>
                   `px-3 py-2.5 text-sm font-semibold rounded-xl transition-all ${
                     isActive
-                      ? 'text-[#ffcc00] bg-blue-600 font-bold shadow-sm'
+                      ? 'text-[#17181A] bg-[#ffcc00] font-bold shadow-sm'
                       : 'text-[#ffcc00]/85 hover:text-[#ffcc00] hover:bg-white/10'
                   }`
                 }
@@ -180,35 +157,45 @@ export const Navbar = () => {
             ))}
           </div>
 
-          {/* Portal quick access on mobile */}
-          <div>
-            <p className="text-xs uppercase font-bold text-gray-300 tracking-wider mb-2.5 px-1">Access Portals</p>
-            <div className="grid grid-cols-3 gap-2.5">
-              {portalLinks.map((portal) => (
-                <Link
-                  key={portal.path}
-                  to={portal.path}
-                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-white/5 border border-white/10 text-center hover:border-[#ffcc00] transition-all hover:scale-[1.02]"
-                >
-                  <portal.icon className="w-5 h-5 text-[#ffcc00] mb-1.5" />
-                  <span className="text-[11px] font-medium text-gray-200 leading-tight">{portal.name}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Auth buttons on mobile */}
+          {/* Single role-based entry point on mobile too */}
           <div className="pt-1 flex items-center gap-3">
-            <Button to="/login" variant="charcoal" size="sm" className="w-full py-2.5">
-              Log In
-            </Button>
-            <Button to="/register" variant="primary" size="sm" className="w-full py-2.5">
-              Apply / Register
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Link
+                  to={dashboardPath}
+                  onClick={() => setIsOpen(false)}
+                  className="flex-1 text-center py-2.5 rounded-xl bg-[#222326] border border-[#D4A72C]/30 text-[#ffcc00] font-bold text-sm flex items-center justify-center gap-2"
+                >
+                  <UserCircle2 className="w-4 h-4" /> {user?.full_name?.split(' ')[0] || 'Dashboard'}
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2.5 rounded-xl bg-red-950/60 border border-red-800 text-red-300 font-bold text-sm flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  onClick={() => setIsOpen(false)}
+                  className="flex-1 text-center py-2.5 rounded-xl bg-[#222326] border border-[#D4A72C]/30 text-[#ffcc00] font-bold text-sm"
+                >
+                  Log In
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setIsOpen(false)}
+                  className="flex-1 text-center py-2.5 rounded-xl bg-[#ffcc00] text-[#17181A] font-bold text-sm"
+                >
+                  Apply / Register
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
     </header>
   );
 };
-

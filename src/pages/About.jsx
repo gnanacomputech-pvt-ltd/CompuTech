@@ -1,10 +1,20 @@
-import React from 'react';
-import { ShieldCheck, Award, Target, Eye, BookOpen, Building2, MapPin, Users, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ShieldCheck, Award, Target, Eye, BookOpen, Building2, MapPin, Users, CheckCircle2, UserCircle2 } from 'lucide-react';
 import { SectionTitle } from '../components/SectionTitle';
 import { PartnerSection } from '../components/PartnerSection';
 import { Button } from '../components/Button';
+import { siteContent } from '../lib/api/content';
 
 export const About = () => {
+  // Owners/leadership — managed by ERP staff (Content tab), not hardcoded.
+  // Section starts empty until an admin adds the first entry.
+  const [owners, setOwners] = useState([]);
+  useEffect(() => {
+    siteContent.bySection('owner')
+      .then((data) => setOwners(data.results))
+      .catch(() => setOwners([]));
+  }, []);
+
   return (
     <div className="py-12 bg-[#FAFAF7]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -147,6 +157,39 @@ export const About = () => {
             </div>
           </div>
         </div>
+
+        {/* Leadership / Owners — content managed via the ERP admin portal */}
+        {owners.length > 0 && (
+          <div className="mb-20">
+            <SectionTitle
+              badge="Leadership"
+              title="Meet Our Founders"
+              subtitle="The team behind Gnana Computech Solutions."
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {owners.map((owner) => (
+                <div key={owner.id} className="bg-white rounded-2xl border border-[#E8E1D2] p-6 text-center shadow-sm hover:shadow-lg hover:border-[#D4A72C] transition-all">
+                  {owner.image_url ? (
+                    <img
+                      src={owner.image_url}
+                      alt={owner.title}
+                      className="w-24 h-24 rounded-full object-cover mx-auto mb-4 border-4 border-[#FAFAF7] shadow"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-[#FAFAF7] border border-[#E8E1D2] flex items-center justify-center mx-auto mb-4">
+                      <UserCircle2 className="w-12 h-12 text-[#D4A72C]" />
+                    </div>
+                  )}
+                  <h4 className="text-lg font-bold text-[#222326]">{owner.title}</h4>
+                  <p className="text-sm font-semibold text-[#D4A72C] mt-0.5">{owner.subtitle}</p>
+                  {owner.description && (
+                    <p className="text-xs text-[#6B6B6B] leading-relaxed mt-3">{owner.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Partner Section Showcase */}
         <PartnerSection />

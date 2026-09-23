@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 from apps.common.models import TimeStampedModel
 
 
@@ -89,3 +90,57 @@ class StudentRegistrationInquiry(TimeStampedModel):
 
     def __str__(self):
         return f"[{self.status}] {self.full_name} — {self.program} ({self.email})"
+
+
+class SiteContent(TimeStampedModel):
+    """
+    Editorial content for the marketing site's mostly-static sections, made
+    admin-manageable (ERP staff CRUD) instead of hardcoded in frontend data
+    files. One flexible model instead of nine near-identical ones — the
+    sections differ enough (events need a date/time range, services need a
+    feature list, testimonials need a rating) that a single fixed schema
+    would either be too narrow or too wide for all of them, so field usage
+    varies by `section` and free-form extras (features, technologies,
+    agenda, rating, tag, etc.) live in `extra`.
+
+    image_url/link_url are plain URLs rather than an uploaded file field —
+    matches how the data these sections replace already worked (S3/external
+    logo and avatar URLs in src/data/*.js), and keeps this endpoint a plain
+    JSON CRUD API with no multipart upload path to build.
+    """
+    SECTION_CHOICES = (
+        ('partner', 'Partner College / Training Association'),
+        ('recognition', 'Official Recognition / Certification'),
+        ('about', 'About Gnana Computech Solutions'),
+        ('owner', 'Owner / Leadership'),
+        ('impact_stat', 'Our Impact in Numbers'),
+        ('event', 'Event / Workshop'),
+        ('service', 'Technology Service'),
+        ('internship', 'Internship Program'),
+        ('testimonial', 'Student & Partner Story'),
+    )
+
+    section = models.CharField(max_length=20, choices=SECTION_CHOICES, db_index=True)
+    title = models.CharField(max_length=255, help_text="Name / heading (e.g. college name, owner's name, stat label).")
+    subtitle = models.CharField(max_length=255, blank=True, help_text="e.g. designation, role, badge, program type.")
+    description = models.TextField(blank=True)
+    image_url = models.URLField(blank=True, max_length=1000)
+    link_url = models.URLField(blank=True, max_length=1000)
+    location = models.CharField(max_length=255, blank=True)
+    event_start = models.DateTimeField(null=True, blank=True, help_text="Event section: start date & time.")
+    event_end = models.DateTimeField(null=True, blank=True, help_text="Event section: end date & time (optional).")
+    display_order = models.PositiveIntegerField(default=0, help_text="Lower shows first within its section.")
+    is_active = models.BooleanField(default=True, db_index=True, help_text="Unpublished items are hidden from the public site but stay editable.")
+    extra = models.JSONField(default=dict, blank=True, help_text="Section-specific extras, e.g. {\"features\": [...], \"technologies\": [...], \"rating\": 5}.")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='site_content_created'
+    )
+
+    class Meta:
+        db_table = 'website_site_content'
+        ordering = ['section', 'display_order', '-created_at']
+        verbose_name = 'Site Content'
+        verbose_name_plural = 'Site Content'
+
+    def __str__(self):
+        return f"[{self.section}] {self.title}"
