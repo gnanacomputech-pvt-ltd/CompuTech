@@ -70,9 +70,16 @@ SECURE_HSTS_PRELOAD = True
 # Enforce HTTPS redirects (ALB/CloudFront terminates TLS, so only if proxy sets X-Forwarded-Proto)
 SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False').lower() in ('true', '1', 't')
 
-# Secure cookies (session, CSRF)
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+# Secure cookies (session, CSRF) — a Secure cookie is only ever sent by the
+# browser over HTTPS, so this must be False on any non-DEBUG deployment that
+# doesn't have TLS yet (e.g. infra/aws-minimal before a domain/cert exists),
+# or the browser silently drops the cookie and every CSRF-protected POST
+# (including the Django admin login) fails with "CSRF verification failed."
+# Defaults to prior behavior (not DEBUG); override with COOKIE_SECURE.
+cookie_secure_env = os.getenv('COOKIE_SECURE')
+COOKIE_SECURE = (cookie_secure_env.lower() in ('true', '1', 't')) if cookie_secure_env is not None else (not DEBUG)
+SESSION_COOKIE_SECURE = COOKIE_SECURE
+CSRF_COOKIE_SECURE = COOKIE_SECURE
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
