@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Building2, UserCheck, BookOpen, Layers, UserPlus,
   CheckSquare, FileSpreadsheet, FolderGit2, GraduationCap, DollarSign, Award,
   Settings, LogOut, Bell, Search, TrendingUp, Calendar, AlertCircle, ChevronRight,
-  Plus, Trash2, Edit, Check, X, Download, Filter, Eye, Phone, Mail, MapPin,
+  Plus, Trash2, Edit, Check, X, Download, Filter, Phone, Mail, MapPin,
   Sparkles, Printer, FileText, CheckCircle2, Clock, ShieldCheck, RefreshCw,
   Image, Upload, Layout
 } from 'lucide-react';
@@ -666,23 +666,6 @@ export const ErpDashboard = () => {
     }
   };
 
-  // ----------------------------------------------------
-  // FULL STUDENT PROFILE — admin access to personal, professional
-  // and course details. Opens instantly with row data, then enriches
-  // with GET /api/v1/students/:id/ (StudentSerializer returns nested
-  // enrollments with program/batch/status/attendance).
-  // ----------------------------------------------------
-  const [viewStudent, setViewStudent] = useState(null);
-  const handleViewStudent = async (std) => {
-    setViewStudent(std);
-    try {
-      const profile = await studentsApi.get(std.id);
-      setViewStudent(profile);
-    } catch (err) {
-      // Row-level data remains visible if the detail call fails
-    }
-  };
-
   // Edit a student's professional details (personal name/email/phone belong
   // to the linked User account, not editable here).
   const [isStudentEditModalOpen, setIsStudentEditModalOpen] = useState(false);
@@ -1155,13 +1138,6 @@ export const ErpDashboard = () => {
                         <td className="p-3">
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => handleViewStudent(std)}
-                              className="text-[#D4A72C] hover:text-[#B88918] p-1 rounded hover:bg-[#D4A72C]/10 cursor-pointer"
-                              title="View Full Profile (Personal + Professional + Course)"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                            <button
                               onClick={() => handleDeleteStudent(std.id)}
                               className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-950/50 cursor-pointer"
                               title="Remove Student"
@@ -1257,13 +1233,6 @@ export const ErpDashboard = () => {
                         </td>
                         <td className="p-3.5">
                           <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleViewStudent(std)}
-                              className="p-1.5 rounded bg-[#D4A72C]/10 hover:bg-[#D4A72C]/25 text-[#D4A72C] border border-[#D4A72C]/40 cursor-pointer"
-                              title="View Full Profile (Personal + Professional + Course)"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
                             <button
                               onClick={() => openEditStudent(std)}
                               className="p-1.5 rounded bg-gray-900 hover:bg-gray-800 text-gray-300 hover:text-[#D4A72C] border border-gray-800 cursor-pointer"
@@ -2422,87 +2391,6 @@ export const ErpDashboard = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* MODAL 1B: FULL STUDENT PROFILE (ADMIN) */}
-      {/* ---------------------------------------------------- */}
-      {viewStudent && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-[#222326] border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-2xl w-full text-white shadow-2xl max-h-[85vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Eye className="w-5 h-5 text-[#D4A72C]" /> Student Profile
-              </h3>
-              <button onClick={() => setViewStudent(null)} className="text-gray-400 hover:text-white cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="pt-4 space-y-6 text-xs">
-              {/* ── PERSONAL DETAILS ─────────────────────────── */}
-              <div>
-                <h4 className="text-[#D4A72C] font-bold uppercase tracking-wider text-[10px] mb-3 border-b border-[#D4A72C]/25 pb-2">Personal Details</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                  <div><p className="text-gray-500 text-[10px] uppercase font-bold">Full Name</p><p className="text-white font-bold">{viewStudent.user_details?.full_name || viewStudent.name || '—'}</p></div>
-                  <div><p className="text-gray-500 text-[10px] uppercase font-bold">Email</p><p className="text-gray-300 break-all">{viewStudent.user_details?.email || viewStudent.email || '—'}</p></div>
-                  <div><p className="text-gray-500 text-[10px] uppercase font-bold">Phone</p><p className="text-gray-300">{viewStudent.user_details?.phone || viewStudent.phone || '—'}</p></div>
-                  <div><p className="text-gray-500 text-[10px] uppercase font-bold">Account Status</p><p className="text-gray-300">{viewStudent.is_active === undefined ? '—' : (viewStudent.is_active ? 'Active' : 'Inactive')}</p></div>
-                </div>
-              </div>
-
-              {/* ── PROFESSIONAL DETAILS ─────────────────────── */}
-              <div>
-                <h4 className="text-[#D4A72C] font-bold uppercase tracking-wider text-[10px] mb-3 border-b border-[#D4A72C]/25 pb-2">Professional Details</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                  <div><p className="text-gray-500 text-[10px] uppercase font-bold">Student ID</p><p className="font-mono text-[#D4A72C] font-bold">{viewStudent.business_id || viewStudent.id || '—'}</p></div>
-                  <div><p className="text-gray-500 text-[10px] uppercase font-bold">USN</p><p className="font-mono text-gray-300">{viewStudent.usn || '—'}</p></div>
-                  <div><p className="text-gray-500 text-[10px] uppercase font-bold">Institution</p><p className="text-gray-300">{viewStudent.institution_name || viewStudent.college || '—'}</p></div>
-                  <div><p className="text-gray-500 text-[10px] uppercase font-bold">Degree / Branch</p><p className="text-gray-300">{[viewStudent.degree, viewStudent.branch].filter(Boolean).join(' — ') || '—'}</p></div>
-                  <div><p className="text-gray-500 text-[10px] uppercase font-bold">Semester</p><p className="text-gray-300">{viewStudent.semester ? `Semester ${viewStudent.semester}` : '—'}</p></div>
-                  <div><p className="text-gray-500 text-[10px] uppercase font-bold">Joined On</p><p className="text-gray-300">{viewStudent.user_details?.created_at ? new Date(viewStudent.user_details.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p></div>
-                </div>
-              </div>
-
-              {/* ── COURSE DETAILS ───────────────────────────── */}
-              <div>
-                <h4 className="text-[#D4A72C] font-bold uppercase tracking-wider text-[10px] mb-3 border-b border-[#D4A72C]/25 pb-2">Course Details</h4>
-                {Array.isArray(viewStudent.enrollments) && viewStudent.enrollments.length > 0 ? (
-                  <div className="space-y-3">
-                    {viewStudent.enrollments.map((enr) => (
-                      <div key={enr.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-2">
-                        <div className="flex justify-between items-start gap-2">
-                          <div>
-                            <p className="text-white font-bold">{enr.program_title || enr.course || '—'}</p>
-                            <p className="text-gray-400">Batch: {enr.batch_name || enr.batch || '—'}</p>
-                          </div>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold border bg-[#D4A72C]/20 text-[#D4A72C] border-[#D4A72C]/30 whitespace-nowrap">{enr.status || '—'}</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-gray-800">
-                          <div><p className="text-gray-500 text-[10px] uppercase font-bold">Enrollment ID</p><p className="font-mono text-gray-300 text-[10px]">{enr.business_id || enr.id || '—'}</p></div>
-                          <div><p className="text-gray-500 text-[10px] uppercase font-bold">Enrolled</p><p className="text-gray-300">{enr.enrolled_at ? new Date(enr.enrolled_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</p></div>
-                          <div><p className="text-gray-500 text-[10px] uppercase font-bold">Attendance</p><p className="text-gray-300">{enr.attendance_percentage != null ? `${Number(enr.attendance_percentage).toFixed(1)}%` : '—'}</p></div>
-                          <div><p className="text-gray-500 text-[10px] uppercase font-bold">Coordinator Approval</p><p className="text-gray-300">{enr.coordinator_approval ? 'Approved' : 'Pending'}</p></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-400 py-4 text-center">No course enrollments found for this student.</p>
-                )}
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-gray-800 flex justify-end">
-              <button
-                onClick={() => setViewStudent(null)}
-                className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer"
-              >
-                Close Profile
-              </button>
-            </div>
           </div>
         </div>
       )}
