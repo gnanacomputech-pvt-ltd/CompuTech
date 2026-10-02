@@ -1,8 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ShieldCheck, Building2, MapPin, Users, GraduationCap, Award, CheckCircle2, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
-import { partnersData, recognitionsData } from '../data/partnersData';
+import { fetchPartners, fetchRecognitions } from '../lib/publicContent';
 
 export const PartnerSection = () => {
+  // Partner colleges (ERP dashboard's Content tab, section=partner) and
+  // official recognitions (section=recognition) — the scrolling logo
+  // marquee below stays a fixed decorative list, not admin-managed.
+  const [partnersData, setPartnersData] = useState([]);
+  const [recognitionsData, setRecognitionsData] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetchPartners().then((data) => { if (!cancelled) setPartnersData(data); }).catch(() => {});
+    fetchRecognitions().then((data) => { if (!cancelled) setRecognitionsData(data); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   // Recognitions Carousel Slider State
   const [recIndex, setRecIndex] = useState(0);
   const [isRecPaused, setIsRecPaused] = useState(false);

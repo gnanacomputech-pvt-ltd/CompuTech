@@ -1,52 +1,74 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SectionTitle } from '../components/SectionTitle';
 import { CourseCard } from '../components/CourseCard';
-import { coursesData } from '../data/coursesData';
+import { fetchCourses } from '../lib/publicContent';
 import { Button } from '../components/Button';
-import { Search } from 'lucide-react';
 
 export const Courses = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const categories = ['All', 'Software Engineering', 'Data Science & AI', 'Mobile Development', 'Academic Support', 'Security & Networking'];
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchCourses()
+      .then((data) => { if (!cancelled) setCourses(data); })
+      .catch(() => { if (!cancelled) setError('Could not load courses right now.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
-  const filteredCourses = selectedCategory === 'All' 
-    ? coursesData 
-    : coursesData.filter((c) => c.category === selectedCategory);
+  const categories = ['All', ...Array.from(new Set(courses.map((c) => c.category).filter(Boolean)))];
+
+  const filteredCourses = selectedCategory === 'All'
+    ? courses
+    : courses.filter((c) => c.category === selectedCategory);
 
   return (
     <div className="py-12 bg-[#FAFAF7]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         <SectionTitle
           badge="Training Tracks & Programs"
           title="Industry & Academic Training Courses"
           subtitle="Skill-building courses designed specifically for BCA, MCA, B.E., B.Tech, and Diploma students in Bangalore."
         />
 
-        {/* Category Filters */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                selectedCategory === cat
-                  ? 'bg-[#D4A72C] text-[#17181A] shadow-md scale-105'
-                  : 'bg-white text-[#252525] border border-[#E8E1D2] hover:border-[#D4A72C]'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
+        {loading ? (
+          <p className="text-center text-[#6B6B6B] py-16">Loading courses…</p>
+        ) : error ? (
+          <p className="text-center text-red-600 py-16">{error}</p>
+        ) : courses.length === 0 ? (
+          <p className="text-center text-[#6B6B6B] py-16">No courses published yet — check back soon.</p>
+        ) : (
+          <>
+            {/* Category Filters */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    selectedCategory === cat
+                      ? 'bg-[#D4A72C] text-[#17181A] shadow-md scale-105'
+                      : 'bg-white text-[#252525] border border-[#E8E1D2] hover:border-[#D4A72C]'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
 
-        {/* Course Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          {filteredCourses.map((course) => (
-            <CourseCard key={course.id} course={course} />
-          ))}
-        </div>
+            {/* Course Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+              {filteredCourses.map((course) => (
+                <CourseCard key={course.id} course={course} />
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Custom Course / Batch Guidance */}
         <div className="bg-[#17181A] rounded-2xl p-8 text-white border border-[#D4A72C]/40 text-center max-w-3xl mx-auto space-y-4">

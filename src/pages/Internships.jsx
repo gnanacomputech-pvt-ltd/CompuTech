@@ -1,15 +1,29 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { SectionTitle } from '../components/SectionTitle';
 import { InternshipCard } from '../components/InternshipCard';
-import { internshipsData } from '../data/internshipsData';
+import { fetchInternships } from '../lib/publicContent';
 import { Button } from '../components/Button';
 import { ShieldCheck, Award, Briefcase, CheckCircle2 } from 'lucide-react';
 
 export const Internships = () => {
+  const [internships, setInternships] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchInternships()
+      .then((data) => { if (!cancelled) setInternships(data); })
+      .catch(() => { if (!cancelled) setError('Could not load internships right now.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="py-12 bg-[#FAFAF7]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Banner */}
         <div className="bg-[#17181A] rounded-3xl p-8 sm:p-12 text-white border border-[#D4A72C]/40 mb-16 shadow-xl relative overflow-hidden">
           <div className="relative z-10 max-w-3xl space-y-4">
@@ -31,11 +45,19 @@ export const Internships = () => {
           subtitle="Designed for BCA, MCA, B.E., B.Tech, and Computer Science undergraduates seeking hands-on industry exposure."
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
-          {internshipsData.map((internship) => (
-            <InternshipCard key={internship.id} internship={internship} />
-          ))}
-        </div>
+        {loading ? (
+          <p className="text-center text-[#6B6B6B] py-16">Loading internships…</p>
+        ) : error ? (
+          <p className="text-center text-red-600 py-16">{error}</p>
+        ) : internships.length === 0 ? (
+          <p className="text-center text-[#6B6B6B] py-16">No internships published yet — check back soon.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+            {internships.map((internship) => (
+              <InternshipCard key={internship.id} internship={internship} />
+            ))}
+          </div>
+        )}
 
         {/* Benefits Box */}
         <div className="bg-white rounded-2xl p-8 border border-[#E8E1D2] shadow-sm mb-16">

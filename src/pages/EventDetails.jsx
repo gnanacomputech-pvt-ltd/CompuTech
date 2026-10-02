@@ -1,15 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
-import { Calendar, Clock, MapPin, ArrowLeft, Users, CheckCircle2 } from 'lucide-react';
-import { eventsData } from '../data/eventsData';
+import { Calendar, Clock, MapPin, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { siteContent } from '../lib/api/content';
+import { toEvent } from '../lib/publicContent';
 import { Button } from '../components/Button';
 
 export const EventDetails = () => {
   const { id } = useParams();
-  const event = eventsData.find((e) => e.id === id);
+  const [event, setEvent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  if (!event) {
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    siteContent.get(id)
+      .then((item) => { if (!cancelled) setEvent(toEvent(item)); })
+      .catch(() => { if (!cancelled) setNotFound(true); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  if (notFound) {
     return <Navigate to="/events" replace />;
+  }
+
+  if (loading || !event) {
+    return <div className="py-24 text-center text-[#6B6B6B]">Loading…</div>;
   }
 
   const isUpcoming = event.status === 'upcoming';
@@ -17,7 +34,7 @@ export const EventDetails = () => {
   return (
     <div className="py-12 bg-[#FAFAF7]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         <Link
           to="/events"
           className="inline-flex items-center gap-2 text-sm font-bold text-[#6B6B6B] hover:text-[#D4A72C] transition-colors mb-6"
@@ -26,12 +43,11 @@ export const EventDetails = () => {
           <span>Back to Events</span>
         </Link>
 
-        {/* Hero Card */}
         <div className="bg-[#17181A] rounded-3xl overflow-hidden border border-[#D4A72C]/40 mb-10 shadow-xl">
           <div className="relative h-64 sm:h-80 bg-gray-900">
             <img src={event.image} alt={event.title} className="w-full h-full object-cover opacity-80" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#17181A] via-transparent to-transparent" />
-            
+
             <div className="absolute top-4 left-4 flex gap-2">
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#D4A72C] text-[#17181A]">
                 {event.status.toUpperCase()}
@@ -44,16 +60,18 @@ export const EventDetails = () => {
 
           <div className="p-8 sm:p-10 text-white space-y-4">
             <h1 className="text-2xl sm:text-4xl font-extrabold text-white">{event.title}</h1>
-            
+
             <div className="flex flex-wrap gap-6 text-sm text-gray-300">
               <span className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-[#D4A72C]" />
                 {event.date}
               </span>
-              <span className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#D4A72C]" />
-                {event.time}
-              </span>
+              {event.time && (
+                <span className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#D4A72C]" />
+                  {event.time}
+                </span>
+              )}
               <span className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[#D4A72C]" />
                 {event.location}
@@ -75,8 +93,7 @@ export const EventDetails = () => {
           </div>
         </div>
 
-        {/* Agenda / Details */}
-        {event.agenda && (
+        {event.agenda && event.agenda.length > 0 && (
           <div className="bg-white rounded-2xl p-8 border border-[#E8E1D2] shadow-sm mb-10">
             <h2 className="text-2xl font-bold text-[#222326] mb-6">Event Schedule & Agenda</h2>
             <div className="space-y-3">

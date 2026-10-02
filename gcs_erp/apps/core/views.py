@@ -233,10 +233,22 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 class ProgramViewSet(viewsets.ModelViewSet):
     queryset = Program.objects.all()
     serializer_class = ProgramSerializer
-    permission_classes = [ModuleAccess]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['program_type']
     search_fields = ['title', 'code']
+
+    def get_permissions(self):
+        # Public Courses/Internships pages read this directly — write stays
+        # Full-access-staff-only (no Medium-access role owns Programs).
+        if self.action in ('list', 'retrieve'):
+            return [permissions.AllowAny()]
+        return [ModuleAccess()]
+
+    def get_queryset(self):
+        user = self.request.user
+        if self.action in ('list', 'retrieve') and not (user and user.is_authenticated):
+            return self.queryset.filter(is_published=True)
+        return self.queryset
 
 
 class BatchViewSet(viewsets.ModelViewSet):

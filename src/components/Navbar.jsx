@@ -48,8 +48,8 @@ export const Navbar = () => {
         ? 'bg-[#17181A]/95 backdrop-blur-md border-b border-[#D4A72C]/30 py-2.5 shadow-2xl'
         : 'bg-[#17181A] border-b border-[#222326] py-3.5 shadow-lg'
     }`}>
-      <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
-        <div className="flex items-center justify-between gap-4 lg:gap-6 xl:gap-8">
+      <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-6 xl:px-8">
+        <div className="flex items-center justify-between gap-2 lg:gap-3 xl:gap-5">
 
           {/* Logo */}
           <div className="flex-shrink-0">
@@ -57,13 +57,13 @@ export const Navbar = () => {
           </div>
 
           {/* Desktop Navigation Center */}
-          <nav className="hidden lg:flex items-center justify-center gap-1 xl:gap-2 flex-1">
+          <nav className="hidden lg:flex items-center justify-center gap-0.5 xl:gap-1 flex-1 min-w-0">
             {navLinks.map((link) => (
               <NavLink
                 key={link.path}
                 to={link.path}
                 className={({ isActive }) =>
-                  `px-3 py-1.5 xl:px-3.5 xl:py-2 text-[13px] xl:text-[14px] font-semibold rounded-lg transition-all duration-200 whitespace-nowrap ${
+                  `px-2 py-1.5 xl:px-2.5 xl:py-2 text-[12.5px] xl:text-[14px] font-semibold rounded-lg transition-all duration-200 whitespace-nowrap ${
                     isActive
                       ? 'text-[#17181A] bg-[#ffcc00] font-bold shadow-md'
                       : 'text-[#ffcc00]/80 hover:text-[#ffcc00] hover:bg-white/5'

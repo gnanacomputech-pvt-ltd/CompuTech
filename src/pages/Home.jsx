@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronLeft, ChevronRight, CheckCircle2, Shield, PhoneCall, Calendar, Sparkles } from 'lucide-react';
 import { Hero } from '../components/Hero';
@@ -12,21 +12,34 @@ import { TestimonialCard } from '../components/TestimonialCard';
 import { EventCard } from '../components/EventCard';
 import { StatsCard } from '../components/StatsCard';
 import { Button } from '../components/Button';
-import { servicesData } from '../data/servicesData';
-import { coursesData } from '../data/coursesData';
-import { internshipsData } from '../data/internshipsData';
-import { testimonialsData } from '../data/testimonialsData';
-import { eventsData } from '../data/eventsData';
+import { fetchServices, fetchCourses, fetchInternships, fetchTestimonials, fetchEvents } from '../lib/publicContent';
 
 export const Home = () => {
   // Testimonial Carousel Index State
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
+  const [servicesData, setServicesData] = useState([]);
+  const [coursesData, setCoursesData] = useState([]);
+  const [internshipsData, setInternshipsData] = useState([]);
+  const [testimonialsData, setTestimonialsData] = useState([]);
+  const [eventsData, setEventsData] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchServices().then((data) => { if (!cancelled) setServicesData(data); }).catch(() => {});
+    fetchCourses().then((data) => { if (!cancelled) setCoursesData(data); }).catch(() => {});
+    fetchInternships().then((data) => { if (!cancelled) setInternshipsData(data); }).catch(() => {});
+    fetchTestimonials().then((data) => { if (!cancelled) setTestimonialsData(data); }).catch(() => {});
+    fetchEvents().then((data) => { if (!cancelled) setEventsData(data); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const nextTestimonial = () => {
+    if (testimonialsData.length === 0) return;
     setCurrentTestimonial((prev) => (prev + 1) % testimonialsData.length);
   };
 
   const prevTestimonial = () => {
+    if (testimonialsData.length === 0) return;
     setCurrentTestimonial((prev) => (prev - 1 + testimonialsData.length) % testimonialsData.length);
   };
 
@@ -171,6 +184,9 @@ export const Home = () => {
           </div>
 
           {/* Desktop 3-Card Grid or Mobile Single Card */}
+          {testimonialsData.length === 0 ? (
+            <p className="text-center text-gray-500 py-8">No testimonials published yet.</p>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[0, 1, 2].map((offset) => {
               const itemIndex = (currentTestimonial + offset) % testimonialsData.length;
@@ -181,6 +197,7 @@ export const Home = () => {
               );
             })}
           </div>
+          )}
 
           {/* Pagination Indicators */}
           <div className="flex justify-center items-center space-x-2 mt-8">

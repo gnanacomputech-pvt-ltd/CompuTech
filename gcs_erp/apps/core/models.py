@@ -197,6 +197,16 @@ class Program(AuditModel):
     description = models.TextField(blank=True)
     duration_weeks = models.PositiveIntegerField(default=4)
     base_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    is_published = models.BooleanField(
+        default=True, db_index=True,
+        help_text="Shown on the public Courses/Internships pages when true."
+    )
+    # Free-form marketing fields the public site needs but that don't apply
+    # to every program_type (topics/highlights for a COURSE, skills/
+    # learnings/eligibility/stipend for an INTERNSHIP) — one JSON bucket
+    # instead of a pile of mostly-null columns. Same pattern as
+    # apps/website/models.py SiteContent.extra.
+    extra = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = 'core_programs'

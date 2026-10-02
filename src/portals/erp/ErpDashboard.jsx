@@ -293,7 +293,19 @@ export const ErpDashboard = () => {
   // ----------------------------------------------------
   const programsRes = useCrudResource(programsApi);
   const programs = programsRes.items;
-  const emptyProgramForm = { code: '', title: '', program_type: 'COURSE', description: '', duration_weeks: 4, base_fee: 0 };
+  // COURSE/INTERNSHIP marketing fields live in Program.extra (JSON) — core
+  // fields (code/title/type/description/duration/fee) are real columns
+  // since Batches/Enrollments/Invoices reference them. One-item-per-line
+  // textareas for list fields (topics, highlights, skills, learnings)
+  // instead of a full list editor.
+  const splitLines = (s) => (s || '').split('\n').map((x) => x.trim()).filter(Boolean);
+  const joinLines = (arr) => (Array.isArray(arr) ? arr.join('\n') : '');
+  const emptyProgramForm = {
+    code: '', title: '', program_type: 'COURSE', description: '', duration_weeks: 4, base_fee: 0,
+    is_published: true,
+    category: '', level: '', mode: '', topics: '', highlights: '',
+    domain: '', stipend: '', skills: '', learnings: '', eligibility: '',
+  };
   const [isProgramModalOpen, setIsProgramModalOpen] = useState(false);
   const [editingProgramId, setEditingProgramId] = useState(null);
   const [programForm, setProgramForm] = useState(emptyProgramForm);
@@ -301,16 +313,38 @@ export const ErpDashboard = () => {
   const openAddProgram = () => { setEditingProgramId(null); setProgramForm(emptyProgramForm); setProgramFormError(''); setIsProgramModalOpen(true); };
   const openEditProgram = (prog) => {
     setEditingProgramId(prog.id);
-    setProgramForm({ code: prog.code, title: prog.title, program_type: prog.program_type, description: prog.description || '', duration_weeks: prog.duration_weeks, base_fee: prog.base_fee });
+    const extra = prog.extra || {};
+    setProgramForm({
+      code: prog.code, title: prog.title, program_type: prog.program_type,
+      description: prog.description || '', duration_weeks: prog.duration_weeks, base_fee: prog.base_fee,
+      is_published: prog.is_published !== false,
+      category: extra.category || '', level: extra.level || '', mode: extra.mode || '',
+      topics: joinLines(extra.topics), highlights: joinLines(extra.highlights),
+      domain: extra.domain || '', stipend: extra.stipend || '',
+      skills: joinLines(extra.skills), learnings: joinLines(extra.learnings), eligibility: extra.eligibility || '',
+    });
     setProgramFormError('');
     setIsProgramModalOpen(true);
   };
   const handleSaveProgram = async (e) => {
     e.preventDefault();
     if (!programForm.title.trim() || !programForm.code.trim()) { setProgramFormError('Code and Title are required.'); return; }
+    const extra = programForm.program_type === 'COURSE' ? {
+      category: programForm.category, level: programForm.level, mode: programForm.mode,
+      topics: splitLines(programForm.topics), highlights: splitLines(programForm.highlights),
+    } : programForm.program_type === 'INTERNSHIP' ? {
+      domain: programForm.domain, mode: programForm.mode, stipend: programForm.stipend,
+      skills: splitLines(programForm.skills), learnings: splitLines(programForm.learnings),
+      eligibility: programForm.eligibility,
+    } : {};
+    const payload = {
+      code: programForm.code, title: programForm.title, program_type: programForm.program_type,
+      description: programForm.description, duration_weeks: programForm.duration_weeks, base_fee: programForm.base_fee,
+      is_published: programForm.is_published, extra,
+    };
     try {
-      if (editingProgramId) { await programsApi.update(editingProgramId, programForm); showToast('Program updated successfully!'); }
-      else { await programsApi.create(programForm); showToast('Program created successfully!'); }
+      if (editingProgramId) { await programsApi.update(editingProgramId, payload); showToast('Program updated successfully!'); }
+      else { await programsApi.create(payload); showToast('Program created successfully!'); }
       setIsProgramModalOpen(false);
       programsRes.load();
     } catch (err) {
@@ -2905,7 +2939,7 @@ export const ErpDashboard = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={handleSaveProgram} className="space-y-4 text-xs">
+            <form onSubmit={handleSaveProgram} className="space-y-4 text-xs max-h-[70vh] overflow-y-auto pr-1">
               {programFormError && <div className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-800 text-red-300">{programFormError}</div>}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -2946,6 +2980,86 @@ export const ErpDashboard = () => {
                     className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#D4A72C]" />
                 </div>
               </div>
+
+              <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+                <input type="checkbox" checked={programForm.is_published} onChange={(e) => setProgramForm({ ...programForm, is_published: e.target.checked })}
+                  className="rounded border-gray-700 bg-gray-900" />
+                <span>Published — visible on the public Courses/Internships page</span>
+              </label>
+
+              {(programForm.program_type === 'COURSE' || programForm.program_type === 'INTERNSHIP') && (
+                <div className="pt-3 border-t border-gray-800 space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#D4A72C]">Public page content</p>
+
+                  {programForm.program_type === 'COURSE' ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-gray-400 mb-1">Category</label>
+                          <input type="text" value={programForm.category} onChange={(e) => setProgramForm({ ...programForm, category: e.target.value })}
+                            placeholder="e.g. Software Engineering" className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                        </div>
+                        <div>
+                          <label className="block text-gray-400 mb-1">Level</label>
+                          <input type="text" value={programForm.level} onChange={(e) => setProgramForm({ ...programForm, level: e.target.value })}
+                            placeholder="e.g. Beginner to Advanced" className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 mb-1">Mode</label>
+                        <input type="text" value={programForm.mode} onChange={(e) => setProgramForm({ ...programForm, mode: e.target.value })}
+                          placeholder="e.g. Classroom & Online" className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 mb-1">Topics (one per line)</label>
+                        <textarea rows={3} value={programForm.topics} onChange={(e) => setProgramForm({ ...programForm, topics: e.target.value })}
+                          className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 mb-1">Highlights (one per line)</label>
+                        <textarea rows={2} value={programForm.highlights} onChange={(e) => setProgramForm({ ...programForm, highlights: e.target.value })}
+                          placeholder="e.g. 4 Live Projects" className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-gray-400 mb-1">Domain</label>
+                          <input type="text" value={programForm.domain} onChange={(e) => setProgramForm({ ...programForm, domain: e.target.value })}
+                            placeholder="e.g. Backend Engineering" className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                        </div>
+                        <div>
+                          <label className="block text-gray-400 mb-1">Stipend</label>
+                          <input type="text" value={programForm.stipend} onChange={(e) => setProgramForm({ ...programForm, stipend: e.target.value })}
+                            placeholder="e.g. Certificate + Stipend" className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 mb-1">Mode</label>
+                        <input type="text" value={programForm.mode} onChange={(e) => setProgramForm({ ...programForm, mode: e.target.value })}
+                          placeholder="e.g. In-Office (Bangalore)" className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 mb-1">Eligibility</label>
+                        <input type="text" value={programForm.eligibility} onChange={(e) => setProgramForm({ ...programForm, eligibility: e.target.value })}
+                          placeholder="e.g. BCA, MCA, B.E., B.Tech" className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 mb-1">Skills (one per line)</label>
+                        <textarea rows={3} value={programForm.skills} onChange={(e) => setProgramForm({ ...programForm, skills: e.target.value })}
+                          className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 mb-1">What you'll learn (one per line)</label>
+                        <textarea rows={3} value={programForm.learnings} onChange={(e) => setProgramForm({ ...programForm, learnings: e.target.value })}
+                          className="w-full bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#D4A72C]" />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="pt-4 border-t border-gray-800 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsProgramModalOpen(false)} className="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-white font-bold cursor-pointer">Cancel</button>
                 <button type="submit" className="px-5 py-2 rounded-xl bg-[#D4A72C] hover:bg-[#B88918] text-[#17181A] font-bold cursor-pointer">{editingProgramId ? 'Save Changes' : 'Add Program'}</button>
