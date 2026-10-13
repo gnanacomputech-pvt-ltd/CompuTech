@@ -4,7 +4,13 @@ import { getAccessToken, getRefreshToken, setTokens, clearTokens } from '../auth
 // Django serves the API at /api/v1 (see gcs_erp/config/urls.py). In dev this
 // points at the local Django server; in production it's the ALB/CloudFront
 // hostname set at build time (see .env.example, infra/aws/terraform.tfvars).
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '');
+// Dev falls back to the local Django server. A production build never falls back to
+// localhost: with no VITE_API_BASE_URL it uses same-origin relative URLs (the API is
+// reverse-proxied under /api on the same host, as in infra/aws-minimal), and the
+// deploy workflow refuses to build for AWS without the variable set.
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.DEV ? 'http://localhost:8000' : '')
+).replace(/\/+$/, '');
 
 export class ApiError extends Error {
   constructor(code, message, fieldErrors) {

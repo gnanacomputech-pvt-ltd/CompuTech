@@ -7,5 +7,16 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true
+  },
+  build: {
+    // Split vendor code out of the app bundle so it caches independently across deploys
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          vendor: ['axios', 'lucide-react']
+        }
+      }
+    }
   }
 });

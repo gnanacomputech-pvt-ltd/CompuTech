@@ -6,36 +6,12 @@
     <title>Gnana Computech Solutions Private Limited | Tech Training, Projects & Software Solutions</title>
     <meta name="description" content="Gnana Computech Solutions Private Limited - Leading software development, BCA & MCA academic projects, degree student internships, IT training and placement support in Sunkadakatte, Bangalore." />
     
-    <!-- Tailwind Play CDN for fallback & immediate preview execution -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              gcs: {
-                gold: '#D4A72C',
-                'gold-dark': '#B88918',
-                'gold-light': '#F5E6B8',
-                charcoal: '#222326',
-                'charcoal-dark': '#17181A',
-                'charcoal-light': '#32343A',
-                bg: '#FAFAF7',
-                border: '#E8E1D2',
-                text: '#252525',
-                muted: '#6B6B6B',
-              }
-            },
-            fontFamily: {
-              sans: ['Verdana', 'Geneva', 'Tahoma', 'sans-serif'],
-              mono: ['Verdana', 'Geneva', 'Tahoma', 'sans-serif'],
-              serif: ['Verdana', 'Geneva', 'Tahoma', 'sans-serif'],
-            }
-          }
-        }
-      }
-    </script>
-    
+    <!-- Tailwind is compiled at build time via tailwind.config.js + postcss.config.js
+         and imported through src/index.css. The Tailwind Play CDN must never be
+         used here: it is a dev-only tool that ships a compiler to the browser,
+         causes a flash of unstyled content, and makes the site depend on a
+         third-party CDN being reachable. The <style> block below only covers the
+         base paint before the CSS bundle loads. -->
     <style>
       *, *::before, *::after, html, body, button, input, select, textarea, h1, h2, h3, h4, h5, h6, p, span, a, div, li, ul, ol, label, td, th, code, pre, small, strong, b, em, i {
         font-family: Verdana, Geneva, Tahoma, sans-serif !important;

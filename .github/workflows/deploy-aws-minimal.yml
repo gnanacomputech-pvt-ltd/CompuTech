@@ -23,7 +23,14 @@ env:
   SERVER_IP: 13.232.187.23
 
 jobs:
+  # Gate: run the full backend suite (lint, system checks, migration check, pytest)
+  # before anything is shipped. ci.yml does not trigger on pushes to main, so
+  # without this a direct push to main would deploy untested code to AWS.
+  test:
+    uses: ./.github/workflows/ci.yml
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,6 +62,53 @@ jobs:
           printf '%s' "${{ secrets.DEPLOY_ENV_FILE }}" > app-bundle/.env
           tar -czf app-bundle.tar.gz -C app-bundle .
 
+      # Fail here, before anything is shipped, rather than after the instance has
+      # pulled a bundle it cannot boot. This target is plain HTTP with no domain,
+      # so the three TLS-related settings must be explicitly disabled: settings.py
+      # defaults SECURE_SSL_REDIRECT and HSTS *on* whenever DEBUG is off, which on
+      # an HTTP-only host would 301 every request to an https:// URL that nothing
+      # is listening on (and HSTS would pin that in browsers for a year).
+      - name: Validate deployment env file
+        run: |
+          ENV_FILE=app-bundle/.env
+          if [ ! -s "$ENV_FILE" ]; then
+            echo "DEPLOY_ENV_FILE secret is empty or unset - refusing to deploy."
+            echo "Set it in repo Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          fail=0
+          # Keys that must be present and non-empty
+          for key in SECRET_KEY ALLOWED_HOSTS POSTGRES_PASSWORD DATABASE_URL REDIS_URL; do
+            if ! grep -qE "^${key}=.+" "$ENV_FILE"; then
+              echo "FAIL  ${key} is missing or empty in DEPLOY_ENV_FILE"
+              fail=1
+            fi
+          done
+
+          # Keys that must hold an exact value for this HTTP-only instance
+          check_exact() {
+            if ! grep -qE "^$1=$2[[:space:]]*$" "$ENV_FILE"; then
+              echo "FAIL  expected '$1=$2' in DEPLOY_ENV_FILE ($3)"
+              fail=1
+            fi
+          }
+          check_exact DEBUG False "never deploy with DEBUG on"
+          check_exact SECURE_SSL_REDIRECT False "no TLS on this instance - would redirect to a dead https:// URL"
+          check_exact SECURE_HSTS_SECONDS 0 "no TLS on this instance - HSTS would lock browsers out of the IP"
+          check_exact COOKIE_SECURE False "Secure cookies are never sent over plain HTTP, breaking CSRF/login"
+
+          # The server IP the frontend was built against must be an allowed host
+          if ! grep -E '^ALLOWED_HOSTS=' "$ENV_FILE" | grep -q '${{ env.SERVER_IP }}'; then
+            echo "FAIL  ALLOWED_HOSTS does not include ${{ env.SERVER_IP }} - Django will reject every request"
+            fail=1
+          fi
+
+          if [ "$fail" -eq 0 ]; then
+            echo "Deployment env file looks consistent with this HTTP-only AWS instance."
+          fi
+          exit $fail
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -67,10 +121,35 @@ jobs:
 
       - name: Redeploy on the instance via SSM
         run: |
+          # Written to a file rather than inlined so the shell steps stay readable
+          # and don't need JSON-in-single-quote escaping.
+          #
+          # Ordering matters: the bundle is fetched and unpacked BEFORE anything is
+          # torn down, so a failed download leaves the running site untouched
+          # instead of stranding it in a stopped state. `up -d --build` then
+          # recreates only the containers whose image or config actually changed,
+          # which keeps the downtime window to the restart itself (no `down` first).
+          cat > ssm-params.json <<'JSON'
+          {
+            "commands": [
+              "set -e",
+              "cd /opt/gcs-erp",
+              "aws s3 cp s3://DEPLOY_BUCKET/app-bundle.tar.gz /tmp/app-bundle.tar.gz --region AWS_REGION",
+              "tar -xzf /tmp/app-bundle.tar.gz -C /opt/gcs-erp",
+              "rm -f /tmp/app-bundle.tar.gz",
+              "docker compose up -d --build --remove-orphans",
+              "docker image prune -f",
+              "echo 'waiting for the app to report healthy...'",
+              "for i in $(seq 1 30); do if curl -fsS http://localhost/api/v1/health/ >/dev/null 2>&1; then echo 'health check passed'; exit 0; fi; sleep 5; done; echo 'DEPLOY FAILED: app did not become healthy within 150s'; docker compose ps; docker compose logs --tail=80 web; exit 1"
+            ]
+          }
+          JSON
+          sed -i "s/DEPLOY_BUCKET/${{ env.DEPLOY_BUCKET }}/; s/AWS_REGION/${{ env.AWS_REGION }}/" ssm-params.json
+
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids ${{ env.INSTANCE_ID }} \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=["set -e","cd /opt/gcs-erp","docker compose down","aws s3 cp s3://${{ env.DEPLOY_BUCKET }}/app-bundle.tar.gz /tmp/app-bundle.tar.gz --region ${{ env.AWS_REGION }}","tar -xzf /tmp/app-bundle.tar.gz -C /opt/gcs-erp","rm /tmp/app-bundle.tar.gz","docker compose up -d --build"]' \
+            --parameters file://ssm-params.json \
             --timeout-seconds 600 \
             --region ${{ env.AWS_REGION }} \
             --query "Command.CommandId" --output text)
@@ -84,6 +163,9 @@ jobs:
               --query "Status" --output text 2>/dev/null || echo "Pending")
             echo "status: $STATUS"
             if [ "$STATUS" = "Success" ]; then
+              echo "::group::deploy output"
+              aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id ${{ env.INSTANCE_ID }} --region ${{ env.AWS_REGION }} --query "StandardOutputContent" --output text
+              echo "::endgroup::"
               exit 0
             fi
             if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
@@ -94,3 +176,24 @@ jobs:
           done
           echo "Timed out waiting for deployment to finish"
           exit 1
+
+      # The in-instance check above proves the container is healthy; this proves the
+      # site is actually reachable from the public internet (security group, nginx
+      # port mapping and the SPA fallback all wired up), which is what users hit.
+      - name: Smoke-test the public endpoints
+        run: |
+          fail=0
+          check() {
+            CODE=$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 20 --retry 5 --retry-delay 5 --retry-connrefused "$1" || echo "000")
+            if [ "$CODE" = "$2" ]; then
+              echo "ok    $1 -> $CODE"
+            else
+              echo "FAIL  $1 -> $CODE (expected $2)"
+              fail=1
+            fi
+          }
+          check "http://${{ env.SERVER_IP }}/api/v1/health/" 200
+          check "http://${{ env.SERVER_IP }}/" 200
+          # React Router deep link must fall through to index.html, not 404
+          check "http://${{ env.SERVER_IP }}/courses" 200
+          exit $fail

@@ -5,6 +5,9 @@ on:
     branches: [ develop, main ]
   push:
     branches: [ develop ]
+  # Lets the deploy workflows run this exact suite as a gate before shipping,
+  # so code pushed straight to main is still tested before it reaches AWS.
+  workflow_call: {}
 
 permissions:
   contents: read
