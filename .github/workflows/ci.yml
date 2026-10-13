@@ -75,8 +75,24 @@ jobs:
 
       - name: Wait for services
         run: |
-          until pg_isready -h localhost -p 5432 -U gcs_test; do sleep 2; done
-          until redis-cli -h localhost ping; do sleep 2; done
+          # Bounded on purpose. The `services:` health checks above already gate
+          # the job from starting, so this is only a short belt-and-braces check.
+          #
+          # It must never loop unbounded: the previous version waited on
+          # `redis-cli`, which is NOT installed on GitHub's Ubuntu runners, so
+          # the command failed every iteration and the job hung until the 6-hour
+          # timeout. Probing the TCP port with a bash builtin needs no extra
+          # packages and cannot hang.
+          wait_for() {
+            for i in $(seq 1 30); do
+              (echo > /dev/tcp/127.0.0.1/$1) >/dev/null 2>&1 && { echo "$2 is up on $1"; return 0; }
+              sleep 2
+            done
+            echo "$2 never became reachable on port $1"
+            return 1
+          }
+          wait_for 5432 postgres
+          wait_for 6379 redis
 
       - name: Apply migrations
         working-directory: gcs_erp
