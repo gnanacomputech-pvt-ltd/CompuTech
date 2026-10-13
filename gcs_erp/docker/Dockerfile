@@ -26,8 +26,9 @@ WORKDIR /app
 
 # Install Python requirements
 COPY requirements/ /app/requirements/
+# constraints.txt pins every (transitive) dependency for reproducible builds
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements/prod.txt
+    pip install --no-cache-dir -r requirements/prod.txt -c requirements/constraints.txt
 
 # ============================================================================
 # Runtime image
@@ -68,6 +69,8 @@ EXPOSE 8000
 
 # ---- Entrypoint ----
 # Collect staticfiles, apply migrations, then launch Gunicorn.
-# - Migration is idempotent (no-op if already applied)
-# - collectstatic uses the S3MediaStorage backend if AWS_STORAGE_BUCKET_NAME is set
-CMD ["sh", "-c", "python manage.py collectstatic --noinput && python manage.py migrate --noinput && gunicorn config.wsgi:application --config docker/gunicorn.conf.py"]
+# - Migration is idempotent (no-op if already applied). When running several
+#   API replicas, set RUN_MIGRATIONS=false on all but one (or run
+#   `python manage.py migrate` as a one-off task) to avoid concurrent migrations.
+# - collectstatic always writes to the local STATIC_ROOT served by WhiteNoise
+CMD ["sh", "-c", "python manage.py collectstatic --noinput && if [ \"${RUN_MIGRATIONS:-true}\" = \"true\" ]; then python manage.py migrate --noinput; fi && exec gunicorn config.wsgi:application --config docker/gunicorn.conf.py"]

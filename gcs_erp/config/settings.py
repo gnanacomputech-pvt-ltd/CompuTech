@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from datetime import timedelta
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -26,19 +27,24 @@ if SENTRY_DSN:
             integrations=[DjangoIntegration(), CeleryIntegration()],
             traces_sample_rate=float(os.getenv('SENTRY_TRACES_SAMPLE_RATE', '0.1')),
             send_default_pii=False,
-            environment=os.getenv('SENTRY_ENVIRONMENT', 'production' if not os.getenv('DEBUG', 'True').lower() in ('true', '1', 't') else 'development'),
+            environment=os.getenv('SENTRY_ENVIRONMENT', 'development' if os.getenv('DEBUG', 'False').lower() in ('true', '1', 't') else 'production'),
             release=os.getenv('GIT_COMMIT_SHA', 'gcs-erp@2.0.0'),
         )
     except ImportError:
         pass
 
+# SECURITY WARNING: don't run with debug turned on in production!
+# Safe by default: DEBUG is OFF unless explicitly enabled (local .env sets DEBUG=True).
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
+
 # SECURITY WARNING: keep the secret key used in production secret!
+# Required outside DEBUG — the app refuses to start rather than fall back to a known key.
 SECRET_KEY = os.getenv('SECRET_KEY')
 if not SECRET_KEY:
-    SECRET_KEY = 'gcs-erp-dev-insecure-key-change-in-production-2026'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't')
+    if DEBUG:
+        SECRET_KEY = 'gcs-erp-dev-insecure-key-do-not-use-in-production'
+    else:
+        raise ImproperlyConfigured('SECRET_KEY environment variable is required when DEBUG is off.')
 
 # AWS deployment: only allow explicitly configured production hosts
 ALLOWED_HOSTS = [
@@ -63,12 +69,16 @@ CSRF_TRUSTED_ORIGINS = [
 # Security Headers (Section 9 — HTTPS, HSTS, CSP, X-Frame, etc.)
 # ---------------------------------------------------------------------------
 # HSTS: 1 year + preload + subdomains (only in production behind TLS)
-SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0'))  # 0 = disabled for dev
+# Defaults to 1 year outside DEBUG; set SECURE_HSTS_SECONDS=0 explicitly for HTTP-only demo hosts.
+SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0' if DEBUG else '31536000'))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
 # Enforce HTTPS redirects (ALB/CloudFront terminates TLS, so only if proxy sets X-Forwarded-Proto)
-SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False').lower() in ('true', '1', 't')
+# Defaults to ON outside DEBUG; set SECURE_SSL_REDIRECT=False explicitly for HTTP-only demo hosts.
+SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False' if DEBUG else 'True').lower() in ('true', '1', 't')
+# Load-balancer / container health checks hit plain HTTP and must not be redirected.
+SECURE_REDIRECT_EXEMPT = [r'^api/v1/health/$']
 
 # Secure cookies (session, CSRF) — a Secure cookie is only ever sent by the
 # browser over HTTPS, so this must be False on any non-DEBUG deployment that
@@ -94,17 +104,10 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 # Referrer policy
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
-# Content Security Policy — tightened for production
-# Report-only mode first; tighten after testing
-CSP_DEFAULT_SRC = ("'self'",)
-CSP_SCRIPT_SRC = ("'self'",)
-CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")  # Tailwind needs unsafe-inline for JIT
-CSP_IMG_SRC = ("'self'", 'data:', 'https:')
-CSP_FONT_SRC = ("'self'", 'data:')
-CSP_CONNECT_SRC = ("'self'",)
-CSP_FRAME_ANCESTORS = ("'none'",)
-CSP_BASE_URI = ("'self'",)
-CSP_FORM_ACTION = ("'self'",)
+# NOTE: Content-Security-Policy is intentionally not configured here. The CSP_*
+# settings need the django-csp package + middleware to have any effect. The API
+# serves JSON (and one small HTML verification page); set CSP at nginx/CloudFront
+# if required.
 
 # Application definition
 INSTALLED_APPS = [
@@ -225,7 +228,6 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 # Media files
 MEDIA_URL = '/media/'
@@ -266,7 +268,6 @@ if AWS_STORAGE_BUCKET_NAME:
             "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
         },
     }
-    DEFAULT_FILE_STORAGE = 'apps.common.storage.S3MediaStorage'
     if AWS_S3_CUSTOM_DOMAIN:
         MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
     elif AWS_S3_ENDPOINT_URL:
@@ -282,11 +283,22 @@ else:
             "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
         },
     }
-    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
     MEDIA_URL = '/media/'
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Cache — shared across gunicorn workers so DRF throttling counts are consistent.
+# Uses Redis when REDIS_URL is explicitly provided, otherwise per-process memory (local dev/tests).
+if os.getenv('REDIS_URL'):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': os.getenv('REDIS_URL'),
+        }
+    }
+else:
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
@@ -319,6 +331,9 @@ REST_FRAMEWORK = {
         'user': os.getenv('THROTTLE_USER_RATE', '1000/hour'),
         'anon': os.getenv('THROTTLE_ANON_RATE', '100/hour'),
     },
+    # Number of trusted reverse proxies in front of the app (nginx / ALB / CloudFront).
+    # Needed so throttling uses the real client IP and ignores spoofed X-Forwarded-For values.
+    'NUM_PROXIES': int(os.getenv('NUM_PROXIES', '1')),
 }
 
 # AWS WAF / ALB forwarded headers — trust X-Forwarded-For from CloudFront/ALB
@@ -417,3 +432,8 @@ SERVER_EMAIL = os.getenv('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
 
 # Business Logic Constants (Section 8 — Certificate Eligibility)
 MINIMUM_ATTENDANCE_PERCENTAGE = float(os.getenv('MINIMUM_ATTENDANCE_PERCENTAGE', 75.0))
+
+# API-documentation hints from drf-spectacular (missing serializer_class on plain APIViews,
+# untyped serializer methods). They don't affect runtime behaviour or security, and would
+# otherwise make `manage.py check --deploy --fail-level WARNING` fail in CI.
+SILENCED_SYSTEM_CHECKS = ['drf_spectacular.W001', 'drf_spectacular.W002']

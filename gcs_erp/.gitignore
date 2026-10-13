@@ -60,7 +60,7 @@ htmlcov/
 .ipynb_checkpoints/
 
 # ── Docker ───────────────────────────────────────────────────────────────────
-.dockerignore
+# (.dockerignore must be committed — it keeps .env / db / media out of the image)
 
 # ── Node / Frontend (CompuTech) ───────────────────────────────────────────────
 CompuTech/node_modules/
@@ -93,3 +93,5 @@ service-account-key.json
 notes/
 TODO.md
 CLAUDE.md
+.claude/
+pytest-results.xml

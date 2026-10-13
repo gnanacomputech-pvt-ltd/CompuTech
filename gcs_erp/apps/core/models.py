@@ -251,7 +251,7 @@ class Student(AuditModel):
     business_id = models.CharField(max_length=50, unique=True, db_index=True)
     institution = models.ForeignKey(Institution, on_delete=models.PROTECT, related_name='students')
     usn = models.CharField(max_length=50, blank=True, null=True, db_index=True)
-    degree = models.CharField(max_length=100, blank=True) # BCA, MCA, BE etc.
+    degree = models.CharField(max_length=100, blank=True)  # BCA, MCA, BE etc.
     semester = models.IntegerField(default=1)
     branch = models.CharField(max_length=100, blank=True)
 

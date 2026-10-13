@@ -1,4 +1,4 @@
 # GCS ERP — Python Production Dependencies
+# Pinned transitive versions live in requirements/constraints.txt
 -r requirements/prod.txt
-dj-database-url>=2.1.0
-whitenoise>=6.6.0
+-c requirements/constraints.txt

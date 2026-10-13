@@ -204,7 +204,7 @@ class GCSErpFullWorkflowTests(APITestCase):
         self.assertEqual(cert.status, 'ISSUED')
         self.assertTrue(cert.certificate_number.startswith('GCS-CERT-'))
         self.assertTrue(len(cert.token) > 20)
-        self.assertTrue(len(cert.sha256_hash) == 64) # Valid SHA-256 hex string
+        self.assertTrue(len(cert.sha256_hash) == 64)  # Valid SHA-256 hex string
         self.assertTrue(bool(cert.qr_code_image))
         self.assertTrue(bool(cert.pdf_file))
 

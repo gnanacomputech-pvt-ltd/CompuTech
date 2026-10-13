@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:16-alpine
@@ -45,6 +43,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-gcs_admin}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in gcs_erp/.env}@db:5432/${POSTGRES_DB:-gcs_erp_production}
       - REDIS_URL=redis://redis:6379/0
+      - DB_SSL_REQUIRED=${DB_SSL_REQUIRED:-False}
     depends_on:
       db:
         condition: service_healthy
@@ -69,6 +68,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-gcs_admin}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in gcs_erp/.env}@db:5432/${POSTGRES_DB:-gcs_erp_production}
       - REDIS_URL=redis://redis:6379/0
+      - DB_SSL_REQUIRED=${DB_SSL_REQUIRED:-False}
     depends_on:
       db:
         condition: service_healthy
@@ -91,7 +91,10 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-gcs_admin}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in gcs_erp/.env}@db:5432/${POSTGRES_DB:-gcs_erp_production}
       - REDIS_URL=redis://redis:6379/0
+      - DB_SSL_REQUIRED=${DB_SSL_REQUIRED:-False}
     depends_on:
+      db:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -112,6 +115,18 @@ services:
       - certbot_challenge:/var/www/certbot:ro
     depends_on:
       - web
+    networks:
+      - gcs_web
+
+  # Renews Let's Encrypt certificates. First-time issuance: run ./init-letsencrypt.sh
+  certbot:
+    image: certbot/certbot
+    container_name: gcs_erp_certbot
+    restart: unless-stopped
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_challenge:/var/www/certbot
     networks:
       - gcs_web
 

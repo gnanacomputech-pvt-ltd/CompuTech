@@ -1,5 +1,5 @@
 # GCS ERP - Core Production & Base Dependencies
-Django>=5.0,<6.0
+Django>=5.2,<5.3  # 5.2 LTS; 5.0 rejects the STORAGES settings style used in config/settings.py
 djangorestframework>=3.15.0
 djangorestframework-simplejwt>=5.3.1
 django-cors-headers>=4.3.1

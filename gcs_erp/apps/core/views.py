@@ -575,4 +575,3 @@ class DashboardStatsView(APIView):
             })
 
         return Response({"institutions": stats})
-
