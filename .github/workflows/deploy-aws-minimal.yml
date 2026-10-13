@@ -70,7 +70,11 @@ jobs:
           cp infra/aws-minimal/deploy-compose.yml app-bundle/docker-compose.yml
           cp -r infra/aws-minimal/deploy-nginx app-bundle/deploy-nginx
           cp -r dist app-bundle/frontend-dist
-          printf '%s' "${{ secrets.DEPLOY_ENV_FILE }}" > app-bundle/.env
+          # Strip CR: the secret is usually pasted from a file edited on Windows,
+          # and a trailing \r gets parsed as part of the *value* - so
+          # POSTGRES_PASSWORD ends up with an invisible carriage return and the
+          # backend fails to authenticate against Postgres with a baffling error.
+          printf '%s' "${{ secrets.DEPLOY_ENV_FILE }}" | tr -d '\r' > app-bundle/.env
           tar -czf app-bundle.tar.gz -C app-bundle .
 
       # Fail here, before anything is shipped, rather than after the instance has
