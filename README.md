@@ -193,6 +193,57 @@ That compose file is the HTTPS/Certbot variant used once a domain exists; run
 
 ---
 
+## 📧 Email
+
+Transactional email is sent through **Amazon SES**. Two messages exist today:
+
+| Trigger | Email | Code |
+|---|---|---|
+| Student registers at `/signup` | Welcome + portal link | `apps/core/tasks.py` |
+| Password reset requested | Reset link (24h) | `apps/core/views.py` |
+
+Sending runs on the **Celery worker**, so a slow or unreachable mail host never
+delays the signup request. If the broker is down the email falls back to an
+inline send; if that also fails it is logged and dropped. Registration itself is
+never rejected because of the email system — there are tests covering exactly
+that.
+
+### Enabling real delivery
+
+Until SES is configured, `USE_SES=False` means email is written to the container
+log rather than sent. Nothing breaks; nothing arrives either.
+
+1. In the **SES console** (region `ap-south-1`), verify the sender identity —
+   either the `gnanacomputech.com` domain or the single address
+   `noreply@gnanacomputech.com`.
+2. New SES accounts are **sandboxed**: you can only send to addresses you have
+   also verified. Request production access to email real students.
+3. Under **SMTP settings**, click *Create SMTP credentials*. These are a
+   dedicated username/password pair — **not** your AWS access keys.
+4. Put them in the deployment env, and flip the switch:
+
+   ```bash
+   USE_SES=True
+   AWS_SES_SMTP_USERNAME=<from step 3>
+   AWS_SES_SMTP_PASSWORD=<from step 3>
+   DEFAULT_FROM_EMAIL=noreply@gnanacomputech.com   # must be the verified sender
+   FRONTEND_URL=https://your-domain                # links inside the emails
+   ```
+
+`FRONTEND_URL` matters: every link in an email is built from it, so if it is
+unset the recipient gets `http://localhost:3000/login`.
+
+### Previewing without sending
+
+With `USE_SES=False` the full message is printed to the console backend:
+
+```bash
+cd gcs_erp && python manage.py runserver
+# register at /signup, then read the email in the server output
+```
+
+---
+
 ## 🔐 Secrets
 
 No real secrets are committed — only `.env.example` templates. `.env` files,

@@ -409,6 +409,13 @@ class UserRegistrationView(APIView):
         except Exception:
             pass  # Role assignment failure should not block account creation
 
+        # Welcome email. Dispatched after the account and role exist so the
+        # message is only ever sent for a user who can actually sign in.
+        # queue_welcome_email swallows its own failures: a signup must not be
+        # rejected because SES, SMTP or the Celery broker is having a bad day.
+        from apps.core.tasks import queue_welcome_email
+        queue_welcome_email(user)
+
         # Issue tokens immediately (same shape as login)
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
