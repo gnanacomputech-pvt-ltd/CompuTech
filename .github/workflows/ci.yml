@@ -16,6 +16,14 @@ jobs:
   lint-and-test:
     name: Lint, Test & Migration Check
     runs-on: ubuntu-latest
+    # Job-wide so every database step inherits it. settings.py requires a TLS
+    # database connection whenever DEBUG is off - correct against RDS, but the
+    # Postgres service container below has no TLS configured, so every DB step
+    # fails with "server does not support SSL, but SSL was required". The real
+    # deployment opts out the same way (DB_SSL_REQUIRED=False in the instance
+    # env), because it also talks to a plain containerized Postgres.
+    env:
+      DB_SSL_REQUIRED: 'False'
     services:
       postgres:
         image: postgres:16-alpine
