@@ -10,10 +10,21 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'public/**'
+      # These all feed the frontend bundle, so a change to any of them needs a
+      # rebuild and redeploy just as much as a change under src/.
+      - 'index.html'
+      - 'vite.config.js'
+      - 'tailwind.config.js'
+      - 'postcss.config.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'resources/**'
       - 'gcs_erp/**'
       - 'infra/aws-minimal/deploy-compose.yml'
       - 'infra/aws-minimal/deploy-nginx/**'
       - '.github/workflows/deploy-aws-minimal.yml'
+      - '.github/workflows/ci.yml'
   workflow_dispatch: {}
 
 env:
