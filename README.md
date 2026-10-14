@@ -195,7 +195,8 @@ That compose file is the HTTPS/Certbot variant used once a domain exists; run
 
 ## 📧 Email
 
-Transactional email is sent through **Amazon SES**. Two messages exist today:
+Transactional email is sent through **Gmail SMTP** from
+`gnanacomputech@gmail.com`. Two messages exist today:
 
 | Trigger | Email | Code |
 |---|---|---|
@@ -204,42 +205,58 @@ Transactional email is sent through **Amazon SES**. Two messages exist today:
 
 Sending runs on the **Celery worker**, so a slow or unreachable mail host never
 delays the signup request. If the broker is down the email falls back to an
-inline send; if that also fails it is logged and dropped. Registration itself is
-never rejected because of the email system — there are tests covering exactly
-that.
+inline send; if that also fails it is logged. Registration is never rejected
+because of the email system - there are tests covering exactly that.
+
+### Why Gmail SMTP and not SES
+
+The sender is a `@gmail.com` address. Sending that From address through SES
+would mean mail leaving Amazon's servers while claiming to be from Gmail, so
+SPF and DKIM would not align with `gmail.com` and receivers would be likely to
+spam-filter it. Going through Google's own SMTP keeps the sender aligned.
+
+`settings.py` still supports SES (`USE_SES=True`) and it remains the better
+choice if the sender ever moves to an address at a domain whose DNS you
+control - then the domain can be DKIM-verified and SES wins on volume and cost.
 
 ### Enabling real delivery
 
-Until SES is configured, `USE_SES=False` means email is written to the container
-log rather than sent. Nothing breaks; nothing arrives either.
+Email is only written to the container log until an app password is set. This
+is deliberate: `settings.py` refuses to run an SMTP backend with no password
+and falls back to the console backend, so a half-finished setup is visible
+rather than silently failing every send.
 
-1. In the **SES console** (region `ap-south-1`), verify the sender identity —
-   either the `gnanacomputech.com` domain or the single address
-   `noreply@gnanacomputech.com`.
-2. New SES accounts are **sandboxed**: you can only send to addresses you have
-   also verified. Request production access to email real students.
-3. Under **SMTP settings**, click *Create SMTP credentials*. These are a
-   dedicated username/password pair — **not** your AWS access keys.
-4. Put them in the deployment env, and flip the switch:
+1. On the Google account for `gnanacomputech@gmail.com`, enable **2-Step
+   Verification** (app passwords are unavailable without it).
+2. Go to https://myaccount.google.com/apppasswords and generate a password for
+   "Mail". You get 16 characters - strip the spaces.
+3. Put it in the deployment env and redeploy:
 
    ```bash
-   USE_SES=True
-   AWS_SES_SMTP_USERNAME=<from step 3>
-   AWS_SES_SMTP_PASSWORD=<from step 3>
-   DEFAULT_FROM_EMAIL=noreply@gnanacomputech.com   # must be the verified sender
-   FRONTEND_URL=https://your-domain                # links inside the emails
+   EMAIL_HOST_PASSWORD=<the 16-character app password>
    ```
 
-`FRONTEND_URL` matters: every link in an email is built from it, so if it is
-unset the recipient gets `http://localhost:3000/login`.
+   The rest (`EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_HOST_USER`,
+   `DEFAULT_FROM_EMAIL`) is already configured.
+
+Gmail allows roughly **500 messages/day**, which is far above signup volume. If
+that is ever a constraint, move the sender to the company domain and switch to
+SES.
 
 ### Previewing without sending
 
-With `USE_SES=False` the full message is printed to the console backend:
+Leave `EMAIL_HOST_PASSWORD` unset and the whole message - subject, plain text
+and HTML - is printed to the console instead of being sent:
 
 ```bash
 cd gcs_erp && python manage.py runserver
 # register at /signup, then read the email in the server output
+```
+
+On a deployed instance the same output goes to the container log:
+
+```bash
+docker compose logs --tail=80 celery_worker
 ```
 
 ---

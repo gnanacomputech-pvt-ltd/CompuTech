@@ -427,6 +427,21 @@ else:
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 
+# An SMTP backend with no password authenticates against nothing: every send
+# raises SMTPAuthenticationError, which for queued mail means three Celery
+# retries and then a silent drop. Falling back to the console backend keeps the
+# message visible in the logs and makes the misconfiguration obvious, instead of
+# looking like mail that was sent but never arrived.
+if EMAIL_BACKEND.endswith('smtp.EmailBackend') and not EMAIL_HOST_PASSWORD:
+    import warnings
+    warnings.warn(
+        f'EMAIL_BACKEND is SMTP ({EMAIL_HOST}) but no password is set - '
+        'falling back to the console backend. Set EMAIL_HOST_PASSWORD '
+        '(Gmail app password) or AWS_SES_SMTP_PASSWORD to send real email.',
+        RuntimeWarning,
+    )
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@gnanacomputech.com')
 SERVER_EMAIL = os.getenv('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
 
