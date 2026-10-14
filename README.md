@@ -196,7 +196,7 @@ That compose file is the HTTPS/Certbot variant used once a domain exists; run
 ## 📧 Email
 
 Transactional email is sent through **Gmail SMTP** from
-`gnanacomputech@gmail.com`. Two messages exist today:
+`info.gcsminds@gmail.com`. Two messages exist today:
 
 | Trigger | Email | Code |
 |---|---|---|
@@ -226,7 +226,7 @@ is deliberate: `settings.py` refuses to run an SMTP backend with no password
 and falls back to the console backend, so a half-finished setup is visible
 rather than silently failing every send.
 
-1. On the Google account for `gnanacomputech@gmail.com`, enable **2-Step
+1. On the Google account for `info.gcsminds@gmail.com`, enable **2-Step
    Verification** (app passwords are unavailable without it).
 2. Go to https://myaccount.google.com/apppasswords and generate a password for
    "Mail". You get 16 characters - strip the spaces.
@@ -242,6 +242,28 @@ rather than silently failing every send.
 Gmail allows roughly **500 messages/day**, which is far above signup volume. If
 that is ever a constraint, move the sender to the company domain and switch to
 SES.
+
+### If Gmail app passwords are unavailable
+
+Google hides app passwords entirely unless **2-Step Verification** is enabled -
+the page reports "not available for your account" rather than explaining why.
+They are also blocked on Advanced Protection accounts and on Workspace accounts
+where an admin disabled them.
+
+If 2-Step Verification is on and they still do not appear, switch to a sending
+service. Only four values change, no code:
+
+| | Brevo | Resend |
+|---|---|---|
+| Free tier | 300/day | 3000/month |
+| `EMAIL_HOST` | `smtp-relay.brevo.com` | `smtp.resend.com` |
+| `EMAIL_HOST_USER` | the login on their SMTP & API page | the literal word `resend` |
+| `EMAIL_HOST_PASSWORD` | SMTP key | API key |
+
+Both issue credentials immediately with no 2-Step Verification requirement and
+no approval wait, and both report bounces and spam complaints - which neither
+Gmail SMTP nor SES surfaces as clearly. Verify `info.gcsminds@gmail.com` as a
+sender in their dashboard, then set `DEFAULT_FROM_EMAIL` to it as now.
 
 ### Previewing without sending
 
