@@ -10,19 +10,9 @@ export async function login(email, password) {
   return data.user;
 }
 
-// Public self-registration — always creates a STUDENT account
-// (apps/core/views.py UserRegistrationView). There is no equivalent
-// self-service path for staff/institution accounts; those are provisioned
-// by ERP admins.
-export async function registerStudent({ email, password, confirm_password, full_name, phone }) {
-  const data = await apiClient.post(
-    '/auth/register/',
-    { email, password, confirm_password, full_name, phone },
-    { _skipAuth: true }
-  );
-  setTokens({ access: data.access, refresh: data.refresh });
-  return data.user;
-}
+// Public self-registration lives in ./signup.js — all three kinds (student,
+// staff, institution) create a PENDING account that a reviewer has to
+// approve, so none of them set tokens or return a signed-in user.
 
 export async function logout() {
   const refresh = getRefreshToken();

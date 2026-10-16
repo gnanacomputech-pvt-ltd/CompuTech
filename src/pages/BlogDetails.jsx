@@ -1,21 +1,60 @@
-import React from 'react';
-import { useParams, Link, Navigate } from 'react-router-dom';
-import { Calendar, Clock, User, ArrowLeft, Tag } from 'lucide-react';
-import { blogsData } from '../data/blogsData';
+import React, { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { Calendar, Clock, User, ArrowLeft } from 'lucide-react';
+import { fetchBlog } from '../lib/publicContent';
+import { ApiError } from '../lib/api/client';
 import { Button } from '../components/Button';
 
 export const BlogDetails = () => {
   const { id } = useParams();
-  const blog = blogsData.find((b) => b.id === id);
+  const [blog, setBlog] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  if (!blog) {
-    return <Navigate to="/blogs" replace />;
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    fetchBlog(id)
+      .then((item) => { if (!cancelled) setBlog(item); })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof ApiError && typeof err.message === 'string'
+          ? err.message : 'This article could not be loaded.');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="py-12 bg-[#FAFAF7]">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+          <div className="h-80 rounded-3xl bg-[#E8E1D2]/60 animate-pulse" />
+          <div className="h-64 rounded-2xl bg-[#E8E1D2]/60 animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  // A deleted or unpublished post is a dead end, so say so and offer the way
+  // back rather than silently bouncing to the list.
+  if (error || !blog) {
+    return (
+      <div className="py-20 bg-[#FAFAF7]">
+        <div className="max-w-xl mx-auto px-4 text-center space-y-4">
+          <h1 className="text-2xl font-bold text-[#222326]">Article not available</h1>
+          <p className="text-sm text-[#6B6B6B]">{error || 'This article may have been removed or unpublished.'}</p>
+          <Button to="/blogs" variant="primary" size="md">Back to Articles</Button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="py-12 bg-[#FAFAF7]">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         <Link
           to="/blogs"
           className="inline-flex items-center gap-2 text-sm font-bold text-[#6B6B6B] hover:text-[#D4A72C] transition-colors mb-6"
@@ -65,7 +104,7 @@ export const BlogDetails = () => {
               );
             }
             return (
-              <p key={idx} className="text-base text-[#252525]">
+              <p key={idx} className="text-base text-[#252525] whitespace-pre-line">
                 {paragraph.trim()}
               </p>
             );

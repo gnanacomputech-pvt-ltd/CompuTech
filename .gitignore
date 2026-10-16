@@ -35,6 +35,7 @@ gcs_erp/staticfiles/
 gcs_erp/media/certificates/
 gcs_erp/media/avatars/
 gcs_erp/media/assignments/
+gcs_erp/media/site_content/
 *.log
 infra/aws/.terraform/
 infra/aws/*.tfstate

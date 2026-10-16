@@ -47,6 +47,12 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     """
     Core User model using UUID primary key and email as login identifier.
     """
+    APPROVAL_STATUS = (
+        ('PENDING', 'Awaiting Staff Approval'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    )
+
     email = models.EmailField(unique=True, db_index=True)
     full_name = models.CharField(max_length=255)
     phone = models.CharField(max_length=20, blank=True, null=True)
@@ -54,6 +60,15 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    # Self-registered accounts (student / staff / institution signup pages)
+    # start PENDING with is_active=False and cannot log in until an admin or
+    # staff member approves them -- see SignupRequest and
+    # CustomTokenObtainPairSerializer.validate. Accounts created *by* staff
+    # (createsuperuser, EmployeeViewSet.create_with_user, a signup approval)
+    # are approved by definition, which is why APPROVED is the default.
+    approval_status = models.CharField(
+        max_length=20, choices=APPROVAL_STATUS, default='APPROVED', db_index=True
+    )
 
     objects = UserManager()
 
@@ -330,3 +345,84 @@ class Enrollment(AuditModel):
             count = Enrollment.objects.count() + 1
             self.business_id = generate_business_id('ENR', count)
         super().save(*args, **kwargs)
+
+
+class SignupRequest(TimeStampedModel):
+    """
+    One pending self-registration awaiting staff approval.
+
+    The User row is created up front (so password hashing, email uniqueness
+    and validation all work exactly as they do for any other account) but
+    with is_active=False and approval_status='PENDING'. This model carries
+    the extra, kind-specific details the signup form collected that have
+    nowhere to live until the request is approved and the real profile
+    (Student / Employee / Institution) is created from them.
+
+    Which fields apply depends on `kind`; the rest stay blank. One table
+    instead of three near-identical ones, since the review workflow
+    (list pending -> approve/reject) is identical for all three.
+    """
+    KIND_CHOICES = (
+        ('STUDENT', 'Student Account'),
+        ('STAFF', 'Staff / Employee Account'),
+        ('INSTITUTION', 'Institution Partner Account'),
+    )
+
+    STATUS_CHOICES = (
+        ('PENDING', 'Pending Review'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    )
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='signup_request')
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES, db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING', db_index=True)
+
+    # --- kind='STUDENT' ---
+    institution = models.ForeignKey(
+        Institution, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='signup_requests',
+        help_text="Set when the applicant picked an existing partner college.",
+    )
+    college_name = models.CharField(
+        max_length=255, blank=True,
+        help_text="Free-text college name when it is not an existing partner institution.",
+    )
+    degree = models.CharField(max_length=100, blank=True)
+    semester = models.PositiveIntegerField(null=True, blank=True)
+    branch = models.CharField(max_length=100, blank=True)
+    usn = models.CharField(max_length=50, blank=True)
+
+    # --- kind='STAFF' ---
+    requested_role = models.CharField(
+        max_length=50, blank=True,
+        help_text="Role code the applicant asked for; the approver can override it.",
+    )
+    designation = models.CharField(max_length=100, blank=True)
+    department = models.ForeignKey(
+        Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='signup_requests'
+    )
+
+    # --- kind='INSTITUTION' ---
+    organization_name = models.CharField(max_length=255, blank=True)
+    address = models.TextField(blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    contact_phone = models.CharField(max_length=20, blank=True)
+
+    message = models.TextField(blank=True, help_text="Anything the applicant wanted the reviewer to know.")
+
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_signup_requests'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(blank=True, help_text="Internal note / reason, shown only to staff.")
+
+    class Meta:
+        db_table = 'core_signup_requests'
+        ordering = ['-created_at']
+        verbose_name = 'Signup Request'
+        verbose_name_plural = 'Signup Requests'
+
+    def __str__(self):
+        return f"[{self.status}] {self.kind}: {self.user.full_name} ({self.user.email})"

@@ -8,7 +8,17 @@ import { useAuth } from '../lib/auth/AuthContext';
 import { portalForUser, portalHomePath } from '../lib/auth/roles';
 import { ApiError } from '../lib/api/client';
 
-const PORTAL_LABELS = { student: 'Student', erp: 'ERP Staff', institution: 'Institution' };
+const PORTAL_LABELS = {
+  student: 'Student',
+  admin: 'Administrator',
+  staff: 'Staff',
+  institution: 'Institution',
+};
+
+// The tabs are cosmetic — you land on whichever portal your roles grant.
+// 'staff' covers both ERP dashboards, since an applicant does not
+// necessarily know whether their account is admin- or staff-tier.
+const STAFF_PORTALS = new Set(['admin', 'staff']);
 
 export const Login = () => {
   const navigate = useNavigate();
@@ -32,7 +42,9 @@ export const Login = () => {
         setErrorMessage('This account has no portal access assigned. Contact your administrator.');
         return;
       }
-      if (actualPortal !== portalType) {
+      const tabMatches = actualPortal === portalType
+        || (portalType === 'staff' && STAFF_PORTALS.has(actualPortal));
+      if (!tabMatches) {
         setToastMessage(`Signed in as ${PORTAL_LABELS[actualPortal]} — redirecting to your portal.`);
       } else {
         setToastMessage('Login successful! Redirecting…');
@@ -42,6 +54,10 @@ export const Login = () => {
       setTimeout(() => navigate(target, { replace: true }), 600);
     } catch (err) {
       if (err instanceof ApiError) {
+        // An account that exists but is still pending approval (or was
+        // rejected) comes back 403 with the reason as the message
+        // (CustomTokenObtainPairSerializer.APPROVAL_MESSAGES) — show that
+        // instead of telling the user their password is wrong.
         setErrorMessage(err.code === 'AUTHENTICATION_FAILED'
           ? 'Incorrect email or password.'
           : (typeof err.message === 'string' ? err.message : 'Login failed. Please try again.'));
@@ -79,12 +95,12 @@ export const Login = () => {
           </button>
           <button
             type="button"
-            onClick={() => setPortalType('erp')}
+            onClick={() => setPortalType('staff')}
             className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${
-              portalType === 'erp' ? 'bg-[#17181A] text-[#D4A72C] shadow-sm' : 'text-[#6B6B6B] hover:text-[#222326]'
+              portalType === 'staff' ? 'bg-[#17181A] text-[#D4A72C] shadow-sm' : 'text-[#6B6B6B] hover:text-[#222326]'
             }`}
           >
-            <ShieldCheck className="w-3.5 h-3.5" /> ERP Staff
+            <ShieldCheck className="w-3.5 h-3.5" /> Admin / Staff
           </button>
           <button
             type="button"

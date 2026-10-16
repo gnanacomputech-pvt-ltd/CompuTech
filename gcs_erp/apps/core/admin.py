@@ -3,20 +3,20 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from apps.core.models import (
     User, Role, Permission, UserRole, RolePermission,
     Institution, Department, Program, Batch,
-    Student, Employee, Enrollment
+    Student, Employee, Enrollment, SignupRequest
 )
 
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ['email', 'full_name', 'is_staff', 'is_active', 'is_verified', 'created_at']
-    list_filter = ['is_staff', 'is_active', 'is_verified', 'is_superuser']
+    list_display = ['email', 'full_name', 'is_staff', 'is_active', 'approval_status', 'is_verified', 'created_at']
+    list_filter = ['approval_status', 'is_staff', 'is_active', 'is_verified', 'is_superuser']
     search_fields = ['email', 'full_name', 'phone']
     ordering = ['-created_at']
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Personal Info', {'fields': ('full_name', 'phone', 'avatar')}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'is_verified', 'groups', 'user_permissions')}),
+        ('Permissions', {'fields': ('is_active', 'approval_status', 'is_staff', 'is_superuser', 'is_verified', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login',)}),
     )
     add_fieldsets = (
@@ -118,3 +118,20 @@ class EnrollmentAdmin(admin.ModelAdmin):
     ordering = ['-enrolled_at']
     raw_id_fields = ['student', 'program', 'batch', 'institution', 'approved_by']
     readonly_fields = ['business_id', 'enrolled_at', 'created_at', 'updated_at']
+
+
+@admin.register(SignupRequest)
+class SignupRequestAdmin(admin.ModelAdmin):
+    """
+    Read-mostly mirror of the dashboards' accept/reject queue. Approving
+    here would skip the provisioning in apps/core/signup.py, so the status
+    is intentionally not editable from this screen — use the admin or staff
+    dashboard, which runs the real workflow.
+    """
+    list_display = ['user', 'kind', 'status', 'designation', 'requested_role', 'reviewed_by', 'created_at']
+    list_filter = ['kind', 'status']
+    search_fields = ['user__full_name', 'user__email', 'college_name', 'organization_name']
+    ordering = ['-created_at']
+    raw_id_fields = ['user', 'institution', 'department', 'reviewed_by']
+    readonly_fields = ['id', 'status', 'reviewed_by', 'reviewed_at', 'created_at', 'updated_at']
+    list_per_page = 30

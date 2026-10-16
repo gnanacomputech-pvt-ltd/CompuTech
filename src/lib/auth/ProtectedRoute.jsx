@@ -3,7 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { userHasPortalAccess } from './roles';
 
-// Wraps a portal's routes (/erp/*, /student/*, /institution/*): unauthenticated
+// Wraps a portal's routes (/admin/*, /staff/*, /student/*, /institution/*): unauthenticated
 // visitors bounce to /login (remembering where they were headed), and an
 // authenticated user whose role doesn't match this portal bounces to their
 // own portal rather than seeing someone else's data.

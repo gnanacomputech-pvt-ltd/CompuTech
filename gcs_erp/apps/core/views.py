@@ -17,19 +17,22 @@ from django.db.models import Sum, Count, Q
 
 from apps.common.permissions import (
     IsSuperAdmin, IsERPStaff, IsFullAccessStaff, ModuleAccess, StaffWriteAccess,
+    ProgramAccess,
 )
 from apps.core.models import (
     User, Institution, Department, Program, Batch, Student, Employee, Enrollment,
-    Role, UserRole,
+    Role, UserRole, SignupRequest,
 )
 from apps.core.serializers import (
     CustomTokenObtainPairSerializer, ChangePasswordSerializer,
     PasswordResetSerializer, PasswordResetConfirmSerializer,
-    UserRegistrationSerializer,
+    UserRegistrationSerializer, StaffSignupSerializer, InstitutionSignupSerializer,
+    SignupRequestSerializer, SignupApprovalSerializer, SignupRejectionSerializer,
     UserSerializer, InstitutionSerializer, DepartmentSerializer, ProgramSerializer,
     BatchSerializer, StudentSerializer, EmployeeSerializer, EmployeeCreateSerializer,
     EnrollmentSerializer
 )
+from apps.core import signup as signup_service
 
 
 class HealthCheckView(APIView):
@@ -231,24 +234,40 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
 
 class ProgramViewSet(viewsets.ModelViewSet):
-    queryset = Program.objects.all()
+    # enrollment_total / enrollment_active feed ProgramSerializer's counts —
+    # the admin Programs screen shows how many students each program has,
+    # and annotating here keeps it one query instead of one per row.
+    # order_by is explicit because annotate() adds a GROUP BY, which makes
+    # Django report the queryset as unordered — DRF then paginates it
+    # without a stable sort (UnorderedObjectListWarning).
+    queryset = Program.objects.annotate(
+        enrollment_total=Count('enrollments', distinct=True),
+        enrollment_active=Count(
+            'enrollments', filter=Q(enrollments__status='ACTIVE'), distinct=True
+        ),
+    ).order_by('title')
     serializer_class = ProgramSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['program_type']
+    filterset_fields = ['program_type', 'is_published']
     search_fields = ['title', 'code']
+    ordering_fields = ['title', 'created_at', 'base_fee', 'duration_weeks']
 
     def get_permissions(self):
-        # Public Courses/Internships pages read this directly — write stays
-        # Full-access-staff-only (no Medium-access role owns Programs).
+        # Public Courses/Internships pages read this directly. Writes are
+        # Full-access staff or the Content Manager, whose domain covers the
+        # public course catalog (apps/common/permissions.py DOMAIN_ROLES).
         if self.action in ('list', 'retrieve'):
             return [permissions.AllowAny()]
-        return [ModuleAccess()]
+        return [ProgramAccess()]
 
     def get_queryset(self):
         user = self.request.user
         if self.action in ('list', 'retrieve') and not (user and user.is_authenticated):
             return self.queryset.filter(is_published=True)
         return self.queryset
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
 
 class BatchViewSet(viewsets.ModelViewSet):
@@ -372,73 +391,227 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 # User Self-Registration (Signup)
 # ---------------------------------------------------------------------------
 
-class UserRegistrationView(APIView):
+class PublicInstitutionListView(APIView):
     """
-    POST /api/v1/auth/register/
-    Public endpoint for new student self-registration from the /signup page.
-
-    On success:
-    - Creates a User with is_verified=False and role STUDENT
-    - Returns a JWT token pair + user profile (same envelope as login)
+    GET /api/v1/public/institutions/
+    The partner-college picker on the public signup page. Deliberately
+    narrower than InstitutionViewSet (which is staff-only and returns
+    contact details and coordinators) — an anonymous visitor only needs
+    enough to recognise their own college in a dropdown.
     """
     permission_classes = [permissions.AllowAny]
 
+    def get(self, request):
+        rows = Institution.objects.filter(is_active=True).order_by('name').values('id', 'name', 'city')
+        return Response([
+            {'id': str(row['id']), 'name': row['name'], 'city': row['city']}
+            for row in rows
+        ])
+
+
+class BaseSignupView(APIView):
+    """
+    Shared body for the three public self-registration endpoints.
+
+    None of them return tokens: a self-registered account is created PENDING
+    and inactive, and only becomes usable once a reviewer approves it
+    (apps/core/signup.py). Returning a token pair here would hand out a
+    session for an account that cannot do anything yet — the exact behaviour
+    the approval queue exists to prevent.
+    """
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = 'signup'
+    kind = None
+    serializer_class = None
+    success_message = "Registration received. Our team will review it shortly."
+
     def post(self, request):
-        serializer = UserRegistrationSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
 
-        # Create the User
-        user = User.objects.create_user(
-            email=data['email'],
-            password=data['password'],
-            full_name=data['full_name'],
-            phone=data.get('phone', ''),
-            is_active=True,
-            is_verified=False,  # Awaiting email verification in a future iteration
+        signup_request = signup_service.create_signup_request(
+            self.kind, serializer.validated_data
         )
+        user = signup_request.user
 
-        # Assign STUDENT role
-        try:
-            from apps.core.models import Role, UserRole
-            student_role, _ = Role.objects.get_or_create(
-                code='STUDENT',
-                defaults={'name': 'Enrolled Learner', 'description': 'Student self-service portal'}
-            )
-            UserRole.objects.get_or_create(user=user, role=student_role)
-        except Exception:
-            pass  # Role assignment failure should not block account creation
-
-        # Welcome email. Dispatched after the account and role exist so the
-        # message is only ever sent for a user who can actually sign in.
-        # queue_welcome_email swallows its own failures: a signup must not be
-        # rejected because SES, SMTP or the Celery broker is having a bad day.
+        # Acknowledgement email. Dispatched after the account exists so it is
+        # only ever sent for a real pending registration. queue_welcome_email
+        # swallows its own failures: a signup must not be rejected because
+        # SES, SMTP or the Celery broker is having a bad day.
         from apps.core.tasks import queue_welcome_email
         queue_welcome_email(user)
 
-        # Issue tokens immediately (same shape as login)
-        from rest_framework_simplejwt.tokens import RefreshToken
-        refresh = RefreshToken.for_user(user)
-        refresh['email'] = user.email
-        refresh['full_name'] = user.full_name
-        refresh['roles'] = user.get_role_codes()
-
         return Response(
             {
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
+                "request_id": str(signup_request.id),
                 "user": {
                     "id": str(user.id),
                     "email": user.email,
                     "full_name": user.full_name,
                     "phone": user.phone,
-                    "is_verified": user.is_verified,
-                    "roles": user.get_role_codes(),
+                    "approval_status": user.approval_status,
                 },
-                "_message": "Account created successfully. Welcome to GCS Portal!",
+                "approval_status": user.approval_status,
+                "_message": self.success_message,
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class UserRegistrationView(BaseSignupView):
+    """
+    POST /api/v1/auth/register/
+    Public student self-registration from the /signup page. Creates a PENDING
+    account; the STUDENT role and Student profile are created on approval.
+    """
+    kind = 'STUDENT'
+    serializer_class = UserRegistrationSerializer
+    success_message = (
+        "Account created. A Gnana Computech staff member will review and approve it — "
+        "you will be emailed as soon as you can sign in."
+    )
+
+
+class StaffRegistrationView(BaseSignupView):
+    """
+    POST /api/v1/auth/register-staff/
+    Public staff self-registration from the /staff-signup page. Approval is
+    admin-only, because approving one grants an ERP role.
+    """
+    kind = 'STAFF'
+    serializer_class = StaffSignupSerializer
+    success_message = (
+        "Staff account request submitted. An administrator will review it and "
+        "you will be emailed once your access has been approved."
+    )
+
+
+class InstitutionRegistrationView(BaseSignupView):
+    """
+    POST /api/v1/auth/register-institution/
+    Public partner-college self-registration from the /signup page's
+    Institution tab. Approval creates the Institution and makes this user
+    its coordinator.
+    """
+    kind = 'INSTITUTION'
+    serializer_class = InstitutionSignupSerializer
+    success_message = (
+        "Institution partnership request submitted. Our team will review it and "
+        "email you once your coordinator account has been approved."
+    )
+
+
+class SignupRequestViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    The accept / reject queue behind both dashboards.
+
+    GET    /api/v1/signup-requests/?kind=STUDENT&status=PENDING
+    POST   /api/v1/signup-requests/{id}/approve/
+    POST   /api/v1/signup-requests/{id}/reject/
+
+    Who may decide depends on what the request would grant:
+    a STUDENT account is any staff member's call (the staff dashboard's
+    "Students" screen), while STAFF and INSTITUTION requests grant ERP or
+    coordinator access and stay with the Full-access/admin tier.
+    """
+    queryset = SignupRequest.objects.select_related(
+        'user', 'institution', 'department', 'reviewed_by'
+    ).all()
+    serializer_class = SignupRequestSerializer
+    permission_classes = [IsERPStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['kind', 'status']
+    search_fields = [
+        'user__full_name', 'user__email', 'college_name', 'organization_name', 'designation',
+    ]
+    ordering_fields = ['created_at', 'status', 'kind']
+
+    # Kinds a Medium-access staff member may not see or decide on, because
+    # approving them grants ERP or partner-coordinator access.
+    FULL_ACCESS_KINDS = frozenset({'STAFF', 'INSTITUTION'})
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if IsFullAccessStaff().has_permission(self.request, self):
+            return qs
+        return qs.exclude(kind__in=self.FULL_ACCESS_KINDS)
+
+    def _check_can_decide(self, signup_request):
+        """Returns an error Response if this user may not decide this request."""
+        if signup_request.kind in self.FULL_ACCESS_KINDS and not IsFullAccessStaff().has_permission(self.request, self):
+            return Response(
+                {"error": {
+                    "code": "PERMISSION_DENIED",
+                    "message": "Only an administrator can approve or reject this request.",
+                }},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if signup_request.status != 'PENDING':
+            return Response(
+                {"error": {
+                    "code": "ALREADY_REVIEWED",
+                    "message": f"This request has already been {signup_request.status.lower()}.",
+                }},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return None
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        signup_request = self.get_object()
+        denied = self._check_can_decide(signup_request)
+        if denied:
+            return denied
+
+        serializer = SignupApprovalSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        signup_request = signup_service.approve_signup_request(
+            signup_request, request.user, serializer.validated_data
+        )
+
+        from apps.core.tasks import notify_signup_decision
+        notify_signup_decision(signup_request.user, approved=True)
+
+        return Response({
+            **SignupRequestSerializer(signup_request).data,
+            "_message": f"{signup_request.user.full_name} can now sign in.",
+        })
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        signup_request = self.get_object()
+        denied = self._check_can_decide(signup_request)
+        if denied:
+            return denied
+
+        serializer = SignupRejectionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        notes = serializer.validated_data.get('review_notes', '')
+
+        signup_request = signup_service.reject_signup_request(
+            signup_request, request.user, notes
+        )
+
+        from apps.core.tasks import notify_signup_decision
+        notify_signup_decision(signup_request.user, approved=False, reason=notes)
+
+        return Response({
+            **SignupRequestSerializer(signup_request).data,
+            "_message": f"Request from {signup_request.user.full_name} was rejected.",
+        })
+
+    @action(detail=False, methods=['get'], url_path='pending-counts')
+    def pending_counts(self, request):
+        """Badge counts for the dashboard sidebars, in one request."""
+        rows = self.get_queryset().filter(status='PENDING').values('kind').annotate(total=Count('id'))
+        counts = {row['kind']: row['total'] for row in rows}
+        return Response({
+            'student': counts.get('STUDENT', 0),
+            'staff': counts.get('STAFF', 0),
+            'institution': counts.get('INSTITUTION', 0),
+            'total': sum(counts.values()),
+        })
 
 
 # ---------------------------------------------------------------------------

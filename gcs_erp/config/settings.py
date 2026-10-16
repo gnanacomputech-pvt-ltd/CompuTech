@@ -403,6 +403,36 @@ if REDIS_URL.startswith('rediss://'):
     CELERY_REDIS_BACKEND_USE_SSL = CELERY_BROKER_USE_SSL
     CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+# Bound how long a *web request* can wait on Redis. Signup dispatches the
+# welcome email inline with the HTTP request, so with no reachable Redis
+# (local dev, or a broker outage) the default reconnect behaviour made
+# POST /auth/register/ hang for ~65s before the inline-email fallback in
+# apps/core/tasks.py ever ran.
+#
+# Two separate connections are involved and both needed capping: the broker
+# (where the message is published) and the result store (which apply_async
+# touches to register the task's result). The 65s came from the result
+# store's own retry policy -- "Retry limit exceeded while trying to
+# reconnect to the Celery result store backend" -- which the broker options
+# alone do not govern.
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'socket_connect_timeout': 2,
+    'socket_timeout': 2,
+    'max_retries': 1,
+}
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+    'retry_policy': {'timeout': 3.0},
+}
+# Publishing from a request must not sit in a retry loop; the caller handles
+# the failure (queue_welcome_email sends inline instead). Workers are
+# unaffected -- this is the publish path only.
+CELERY_TASK_PUBLISH_RETRY_POLICY = {
+    'max_retries': 1,
+    'interval_start': 0,
+    'interval_step': 0.2,
+    'interval_max': 0.5,
+}
+
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'

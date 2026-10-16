@@ -32,6 +32,11 @@ DOMAIN_ROLES = {
     'assessments': frozenset({'TRAINER', 'MENTOR'}),
     'finance': frozenset({'ACCOUNTS'}),
     'content': frozenset({'CONTENT_MANAGER'}),
+    # The public Courses and Internships pages are Program rows, so the staff
+    # dashboard's "Courses (CRUD)" and "Internships" screens write Programs.
+    # That makes the course catalog part of the Content Manager's domain, the
+    # same way the rest of the marketing site already is.
+    'programs': frozenset({'CONTENT_MANAGER'}),
 }
 
 
@@ -189,6 +194,11 @@ class FinanceStaffWriteAccess(StaffWriteAccess):
 
 class ContentAccess(ModuleAccess):
     domain_roles = DOMAIN_ROLES['content']  # Content Manager
+
+
+class ProgramAccess(ModuleAccess):
+    """Course / internship catalog -- Full-access staff or Content Manager."""
+    domain_roles = DOMAIN_ROLES['programs']  # Content Manager
 
 
 class IsStudent(permissions.BasePermission):

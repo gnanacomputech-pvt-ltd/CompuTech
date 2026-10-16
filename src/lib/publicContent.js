@@ -76,7 +76,7 @@ export function toEvent(item) {
   return {
     id: item.id,
     title: item.title,
-    image: item.image_url || EVENT_ICON_FALLBACK_IMG,
+    image: item.image_src || item.image_url || EVENT_ICON_FALLBACK_IMG,
     status,
     category: extra.category || 'Workshop',
     date: start ? start.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Date TBA',
@@ -102,7 +102,7 @@ export function toTestimonial(item) {
     role: item.subtitle || '',
     college: item.location || '',
     testimonial: item.description,
-    avatar: item.image_url || 'https://api.dicebear.com/7.x/initials/svg?seed=' + encodeURIComponent(item.title || 'GCS'),
+    avatar: item.image_src || item.image_url || 'https://api.dicebear.com/7.x/initials/svg?seed=' + encodeURIComponent(item.title || 'GCS'),
     rating: Number(extra.rating) || 5,
   };
 }
@@ -122,7 +122,7 @@ export function toPartner(item) {
     description: item.description,
     studentsImpacted: extra.studentsImpacted || '',
     tag: extra.tag || '',
-    image: item.image_url || '',
+    image: item.image_src || item.image_url || '',
   };
 }
 
@@ -140,7 +140,7 @@ export function toRecognition(item) {
     description: item.description,
     badge: extra.badge || '',
     icon: extra.icon || '🏆',
-    image: item.image_url || '',
+    image: item.image_src || item.image_url || '',
   };
 }
 
@@ -164,4 +164,96 @@ export function toImpactStat(item, index) {
 export async function fetchImpactStats() {
   const data = await siteContent.bySection('impact_stat');
   return (data.results || []).map(toImpactStat);
+}
+
+
+// ---------------------------------------------------------------------------
+// Gallery & Blog
+// ---------------------------------------------------------------------------
+// Both used to be hardcoded arrays in src/data/, which is why a photo added
+// in the dashboard never appeared on the site. They are SiteContent sections
+// now, so a staff edit shows up on the public page on the next load. The
+// original content is seeded by the seed_site_gallery_blog management
+// command.
+//
+// `event_start` carries "the date this item is about" for every dated
+// section — an event's start time, a gallery photo's date, a post's publish
+// date — rather than each one inventing its own column.
+
+const GALLERY_FALLBACK_IMG = 'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=1000&q=80';
+
+export function toGalleryItem(item) {
+  const extra = item.extra || {};
+  const date = item.event_start ? new Date(item.event_start) : null;
+  return {
+    id: item.id,
+    title: item.title,
+    category: extra.category || 'Gallery',
+    date: date ? date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : '',
+    image: item.image_src || item.image_url || GALLERY_FALLBACK_IMG,
+    description: item.description || '',
+  };
+}
+
+export async function fetchGallery() {
+  const data = await siteContent.bySection('gallery', { ordering: '-event_start' });
+  return (data.results || []).map(toGalleryItem);
+}
+
+const BLOG_FALLBACK_IMG = 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80';
+
+export function toBlog(item) {
+  const extra = item.extra || {};
+  const date = item.event_start ? new Date(item.event_start) : new Date(item.created_at);
+  return {
+    id: item.id,
+    title: item.title,
+    category: extra.category || 'Technology',
+    date: date ? date.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '',
+    author: item.subtitle || 'Gnana Computech Team',
+    readTime: extra.readTime || `${estimateReadMinutes(extra.content || item.description)} min read`,
+    image: item.image_src || item.image_url || BLOG_FALLBACK_IMG,
+    shortDesc: item.description || '',
+    // The body lives in `extra.content`; `description` is the card summary.
+    // Falling back to the summary keeps a post readable if someone saves one
+    // without a body rather than rendering an empty article.
+    content: extra.content || item.description || '',
+  };
+}
+
+// 200 words a minute, rounded up, so a post always claims at least 1 minute.
+function estimateReadMinutes(text) {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
+export async function fetchBlogs() {
+  const data = await siteContent.bySection('blog', { ordering: '-event_start' });
+  return (data.results || []).map(toBlog);
+}
+
+export async function fetchBlog(id) {
+  const item = await siteContent.get(id);
+  return toBlog(item);
+}
+
+// ---------------------------------------------------------------------------
+// About section
+// ---------------------------------------------------------------------------
+
+export function toAbout(item) {
+  const extra = item.extra || {};
+  return {
+    id: item.id,
+    title: item.title,
+    subtitle: item.subtitle || '',
+    description: item.description || '',
+    image: item.image_src || item.image_url || '',
+    highlights: Array.isArray(extra.highlights) ? extra.highlights : [],
+  };
+}
+
+export async function fetchAbout() {
+  const data = await siteContent.bySection('about');
+  return (data.results || []).map(toAbout);
 }

@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.throttling import AnonRateThrottle
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -127,6 +128,10 @@ class SiteContentViewSet(viewsets.ModelViewSet):
     """
     queryset = SiteContent.objects.all()
     serializer_class = SiteContentSerializer
+    # Multipart as well as JSON: gallery photos and blog covers are uploaded
+    # as files from the staff dashboard (SiteContent.image), while the
+    # URL-based sections keep posting plain JSON.
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['section', 'is_active']
     search_fields = ['title', 'subtitle', 'description']

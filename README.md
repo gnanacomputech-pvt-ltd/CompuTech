@@ -51,19 +51,54 @@ Extracted from the official GCS logo & corporate identity:
 - `/internships` - Dedicated Internships Page with domain filters, stipend info, and eligibility
 - `/events` - Coming Soon & Previous Workshops, Hackathons, and Seminars
 - `/events/:id` - Detailed Event Information & Schedule
-- `/blogs` - Tech Articles (Choosing BCA Projects, 2026 IT Skills, Importance of Internships)
+- `/blogs` - Tech articles, written and published from the staff console
 - `/blogs/:id` - Full Blog Article Reader
-- `/gallery` - Campus Activity Gallery with category filters and Lightbox Modal
+- `/gallery` - Campus activity gallery with category filters and lightbox; photos are uploaded from the staff console
 - `/testimonials` - Learner Testimonials Spotlight & Carousel
 - `/contact` - Official GCS Sunkadakatte Contact Page with address, phone, email, and validated contact form
 - `/register` - Student Application & Project Registration Form with validation & success state
-- `/login` - Portal Login Page with role switching (Student / ERP Staff / Institution)
-- `/signup` - Account Signup for Students & Institution Partners
+- `/login` - Portal Login Page with role switching (Student / Admin & Staff / Institution)
+- `/signup` - Account signup for students & institution partners
+- `/staff-signup` - Account request for Gnana Computech staff
 
 ### GCS ERP & Management Portals
-- `/erp` / `/erp/dashboard` - Staff & Admin ERP Dashboard (Students, Institutions, Employees, Programs, Batches, Enrollments, Attendance, Projects, Fees, Certificates, Logout)
-- `/student` / `/student/dashboard` - Student Portal UI (Profile, Active Projects, IEEE Documentation Status, Viva Defense Prep, Fee Ledger, Logout)
+- `/admin` / `/admin/dashboard` - Administrator console (Students, Institutions + partnership requests, Staff access + accept/reject, Programs with live enrolment numbers, Enrollments)
+- `/staff` / `/staff/dashboard` - Staff console, in two blocks: **students** (sign-up accept/reject, student register) then **website content** (Courses, Internships, Services, Events & Workshops, Blog, Gallery, Testimonials, About)
+- `/student` / `/student/dashboard` - Student Portal UI (Profile, Courses, Enrollments, Attendance, Assignments, Assessments, Projects, Fees, Certificates)
 - `/institution` / `/institution/dashboard` - Partner Institution Portal UI (College Student Progress, Active Batches, Workshop Certificates, Logout)
+
+`/erp/*` was the single combined dashboard before admin and staff were split
+apart; it now redirects to whichever console the signed-in role grants.
+
+### Account approval
+Self-registration never grants access on its own. A signup from `/signup` or
+`/staff-signup` creates a **pending** account that cannot sign in until it is
+approved, and attempting to log in before then explains why rather than
+reporting a bad password. Approval is what creates the real profile:
+
+| Signup kind | Approved by | Approval creates |
+|---|---|---|
+| Student | Any staff member, in `/staff/student-sign-ups` | Student profile + `STUDENT` role |
+| Staff | Administrator, in `/admin/staff-access` | Employee record + the granted ERP role |
+| Institution | Administrator, in `/admin/institutions` | Institution record with the applicant as its coordinator |
+
+The workflow lives in `gcs_erp/apps/core/signup.py`; the queue is
+`/api/v1/signup-requests/`.
+
+### Website content is editable, not hardcoded
+Every public section is served from the database, so a staff edit appears on
+the site immediately. Courses and internships are `Program` rows (the same
+records students are enrolled into); services, events, blog posts, gallery
+photos, testimonials and the About blocks are `SiteContent` rows. Gallery and
+blog images are **uploaded files** (`SiteContent.image`), stored under
+`MEDIA_ROOT` locally and in S3 in production.
+
+Gallery and blog content used to live in hardcoded frontend arrays. To
+populate a fresh database with the original set:
+
+```bash
+cd gcs_erp && python manage.py seed_site_gallery_blog
+```
 
 ---
 
@@ -100,8 +135,10 @@ python -m venv venv && source venv/bin/activate   # Windows: venv/Scripts/activa
 pip install -r requirements/dev.txt
 cp .env.example .env            # then set SECRET_KEY and DEBUG=True
 python manage.py migrate
-python manage.py seed_erp_data  # optional demo data
-python manage.py runserver      # http://localhost:8000
+python manage.py seed_erp_data            # optional demo data
+python manage.py seed_public_programs     # optional course/internship catalog
+python manage.py seed_site_gallery_blog   # optional gallery & blog content
+python manage.py runserver                # http://localhost:8000
 ```
 
 `DEBUG` defaults to **off**, and with `DEBUG` off the app refuses to start
@@ -200,13 +237,19 @@ Transactional email is sent through **Gmail SMTP** from
 
 | Trigger | Email | Code |
 |---|---|---|
-| Student registers at `/signup` | Welcome + portal link | `apps/core/tasks.py` |
+| Student / staff / institution registers | Acknowledgement: account created, awaiting approval | `apps/core/tasks.py` |
+| Signup approved or rejected | The decision, and a sign-in link when approved | `apps/core/tasks.py` |
 | Password reset requested | Reset link (24h) | `apps/core/views.py` |
 
 Sending runs on the **Celery worker**, so a slow or unreachable mail host never
-delays the signup request. If the broker is down the email falls back to an
-inline send; if that also fails it is logged. Registration is never rejected
+delays the signup request. If the broker is unreachable the email falls back to
+an inline send; if that also fails it is logged. Registration is never rejected
 because of the email system - there are tests covering exactly that.
+
+Because that dispatch happens inside the HTTP request, `queue_welcome_email`
+TCP-probes the broker first and skips Celery entirely when nothing answers.
+Without it, a signup with no Redis running waited roughly a minute on Celery's
+reconnect cycle before the inline fallback ever ran.
 
 ### Why Gmail SMTP and not SES
 

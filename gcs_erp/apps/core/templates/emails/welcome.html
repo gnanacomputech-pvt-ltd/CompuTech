@@ -23,6 +23,22 @@
         </div>
         <div class="body">
             <h2>Welcome, {{ user.full_name }}!</h2>
+            {% if pending_approval %}
+            <p>Thank you for registering with Gnana Computech Solutions. Your account has been created and is now waiting for approval by our team. We will email you as soon as it has been approved.</p>
+
+            <p style="text-align: center;">
+                <a href="{{ login_url }}" class="button">Sign In Once Approved</a>
+            </p>
+
+            <div class="next-steps">
+                <strong>What happens next:</strong>
+                <ul>
+                    <li>Our coordinator reviews your registration details</li>
+                    <li>You receive a confirmation email once your account is approved</li>
+                    <li>You sign in to track your projects, attendance and certificates</li>
+                </ul>
+            </div>
+            {% else %}
             <p>Your GCS student account has been created successfully. You can now sign in to the student portal to track your projects, attendance, and certificates.</p>
 
             <p style="text-align: center;">
@@ -38,6 +54,7 @@
                     <li>Download certificates once your programme is complete</li>
                 </ul>
             </div>
+            {% endif %}
 
             <p>If the button doesn't work, copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #888; font-size: 0.85rem;">{{ login_url }}</p>

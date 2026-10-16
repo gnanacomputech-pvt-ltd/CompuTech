@@ -23,14 +23,17 @@ import { Contact } from './pages/Contact';
 import { Register } from './pages/Register';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
+import { StaffSignup } from './pages/StaffSignup';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 
 // Portals
-import { ErpDashboard } from './portals/erp/ErpDashboard';
+import { AdminDashboard } from './portals/admin/AdminDashboard';
+import { StaffDashboard } from './portals/staff/StaffDashboard';
 import { StudentDashboard } from './portals/student/StudentDashboard';
 import { InstitutionDashboard } from './portals/institution/InstitutionDashboard';
 import { ProtectedRoute } from './lib/auth/ProtectedRoute';
+import { PortalRedirect } from './lib/auth/PortalRedirect';
 
 // Helper component to scroll to top on route change
 const ScrollToTop = () => {
@@ -45,7 +48,10 @@ export const App = () => {
   const { pathname } = useLocation();
 
   // Check if current route is inside a portal dashboard (to hide public header & footer)
-  const isPortal = pathname.startsWith('/erp') || pathname.startsWith('/student') || pathname.startsWith('/institution');
+  const isPortal = ['/admin', '/staff/', '/erp', '/student', '/institution']
+    .some((prefix) => pathname.startsWith(prefix))
+    // /staff-signup is a public page, unlike every other /staff route.
+    || pathname === '/staff';
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#FAFAF7]">
@@ -78,13 +84,23 @@ export const App = () => {
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/staff-signup" element={<StaffSignup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* ERP Portal UI — staff/admin only (see lib/auth/roles.js) */}
-          <Route path="/erp/*" element={
-            <ProtectedRoute portal="erp"><ErpDashboard /></ProtectedRoute>
+          {/* Admin console — SUPER_ADMIN / ADMIN (see lib/auth/roles.js) */}
+          <Route path="/admin/*" element={
+            <ProtectedRoute portal="admin"><AdminDashboard /></ProtectedRoute>
           } />
+
+          {/* Staff console — every other ERP staff role */}
+          <Route path="/staff/*" element={
+            <ProtectedRoute portal="staff"><StaffDashboard /></ProtectedRoute>
+          } />
+
+          {/* The single ERP dashboard was split into the two above. Old
+              links and bookmarks land on whichever one the role grants. */}
+          <Route path="/erp/*" element={<PortalRedirect />} />
 
           {/* Student Portal UI */}
           <Route path="/student/*" element={

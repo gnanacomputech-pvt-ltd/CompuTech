@@ -20,6 +20,7 @@ REGISTRATION = {
     'confirm_password': 'StrongPassw0rd!2026',
     'full_name': 'New Student',
     'phone': '9876543210',
+    'college_name': 'Soundarya Institute',
 }
 
 
@@ -69,7 +70,7 @@ def test_registration_succeeds_when_email_sending_fails():
 @pytest.mark.django_db
 def test_registration_succeeds_when_celery_broker_is_down():
     """With no broker reachable, the email falls back to an inline send."""
-    with mock.patch.object(send_welcome_email, 'delay', side_effect=OSError('broker down')):
+    with mock.patch.object(send_welcome_email, 'apply_async', side_effect=OSError('broker down')):
         response = APIClient().post('/api/v1/auth/register/', REGISTRATION, format='json')
 
     assert response.status_code == 201
@@ -79,12 +80,34 @@ def test_registration_succeeds_when_celery_broker_is_down():
 
 
 @pytest.mark.django_db
+def test_registration_skips_dispatch_when_the_broker_is_unreachable(settings):
+    """
+    The reachability probe, not a failed dispatch, is what keeps a signup
+    fast when there is no broker: dispatching to a dead broker costs the
+    request several seconds inside Celery, so it must not be attempted.
+
+    Eager mode has no broker to probe and runs the task inline anyway, so
+    queue_welcome_email skips the probe there — this test has to turn it off
+    to exercise the real dispatch path.
+    """
+    settings.CELERY_TASK_ALWAYS_EAGER = False
+    with mock.patch('apps.core.tasks._broker_is_reachable', return_value=False), \
+            mock.patch.object(send_welcome_email, 'apply_async') as dispatch:
+        response = APIClient().post('/api/v1/auth/register/', REGISTRATION, format='json')
+
+    assert response.status_code == 201
+    dispatch.assert_not_called()
+    # ...and the email still goes out, inline.
+    assert len(mail.outbox) == 1
+
+
+@pytest.mark.django_db
 def test_queue_returns_failed_rather_than_raising():
     """Both paths broken: the helper reports failure instead of propagating."""
     user = User.objects.create_user(
         email='x@example.com', password='StrongPassw0rd!2026', full_name='X',
     )
-    with mock.patch.object(send_welcome_email, 'delay', side_effect=OSError('broker down')), \
+    with mock.patch.object(send_welcome_email, 'apply_async', side_effect=OSError('broker down')), \
             mock.patch('apps.core.tasks.send_mail', side_effect=OSError('smtp down')):
         assert queue_welcome_email(user) == 'failed'
 

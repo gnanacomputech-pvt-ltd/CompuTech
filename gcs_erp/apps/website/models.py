@@ -118,6 +118,8 @@ class SiteContent(TimeStampedModel):
         ('service', 'Technology Service'),
         ('internship', 'Internship Program'),
         ('testimonial', 'Student & Partner Story'),
+        ('gallery', 'Gallery Photo'),
+        ('blog', 'Blog Post / Article'),
     )
 
     section = models.CharField(max_length=20, choices=SECTION_CHOICES, db_index=True)
@@ -125,9 +127,19 @@ class SiteContent(TimeStampedModel):
     subtitle = models.CharField(max_length=255, blank=True, help_text="e.g. designation, role, badge, program type.")
     description = models.TextField(blank=True)
     image_url = models.URLField(blank=True, max_length=1000)
+    # Gallery photos and blog covers are uploaded from the staff dashboard
+    # rather than pasted as a URL, so the model needs a real file field
+    # alongside image_url. Both are optional and `image_src` on the
+    # serializer resolves whichever one is set, so existing URL-based
+    # sections keep working untouched. Files land in MEDIA_ROOT locally and
+    # in S3 in production (config/settings.py STORAGES).
+    image = models.ImageField(upload_to='site_content/', blank=True, null=True)
     link_url = models.URLField(blank=True, max_length=1000)
     location = models.CharField(max_length=255, blank=True)
-    event_start = models.DateTimeField(null=True, blank=True, help_text="Event section: start date & time.")
+    event_start = models.DateTimeField(
+        null=True, blank=True,
+        help_text="The date this item is about: an event's start, a gallery photo's date, a blog post's publish date.",
+    )
     event_end = models.DateTimeField(null=True, blank=True, help_text="Event section: end date & time (optional).")
     display_order = models.PositiveIntegerField(default=0, help_text="Lower shows first within its section.")
     is_active = models.BooleanField(default=True, db_index=True, help_text="Unpublished items are hidden from the public site but stay editable.")

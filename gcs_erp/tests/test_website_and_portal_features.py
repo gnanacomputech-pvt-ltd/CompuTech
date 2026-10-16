@@ -108,19 +108,50 @@ class UserRegistrationAuthTests(APITestCase):
             'full_name': 'Ananya Sharma',
             'phone': '9876543211',
             'password': 'SecurePassword123!',
-            'confirm_password': 'SecurePassword123!'
+            'confirm_password': 'SecurePassword123!',
+            'college_name': 'Soundarya Institute of Management',
         }
         res = self.client.post('/api/v1/auth/register/', payload)
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         data = res.data.get('data', res.data)
-        self.assertIn('access', data)
-        self.assertIn('refresh', data)
         self.assertEqual(data['user']['email'], 'newstudent@example.com')
-        self.assertIn('STUDENT', data['user']['roles'])
+        # A self-registered account waits for staff approval, so it gets no
+        # token and no STUDENT role until then (apps/core/signup.py).
+        self.assertNotIn('access', data)
+        self.assertNotIn('refresh', data)
+        self.assertEqual(data['approval_status'], 'PENDING')
 
-        # Verify user persisted in database
+        # Verify user persisted in database, inactive and pending
         user = User.objects.get(email='newstudent@example.com')
         self.assertTrue(user.check_password('SecurePassword123!'))
+        self.assertFalse(user.is_active)
+        self.assertEqual(user.approval_status, 'PENDING')
+        self.assertEqual(user.get_role_codes(), [])
+
+    def test_registration_requires_a_college(self):
+        """Approval creates a Student profile, which needs an institution."""
+        res = self.client.post('/api/v1/auth/register/', {
+            'email': 'nocollege@example.com',
+            'full_name': 'No College',
+            'password': 'SecurePassword123!',
+            'confirm_password': 'SecurePassword123!',
+        })
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_pending_account_cannot_log_in(self):
+        self.client.post('/api/v1/auth/register/', {
+            'email': 'pending@example.com',
+            'full_name': 'Pending Student',
+            'password': 'SecurePassword123!',
+            'confirm_password': 'SecurePassword123!',
+            'college_name': 'Acharya Institute',
+        })
+        res = self.client.post('/api/v1/auth/login/', {
+            'email': 'pending@example.com',
+            'password': 'SecurePassword123!',
+        })
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn('awaiting approval', str(res.data).lower())
 
     def test_registration_password_mismatch(self):
         payload = {

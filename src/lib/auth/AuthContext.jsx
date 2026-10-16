@@ -40,12 +40,6 @@ export const AuthProvider = ({ children }) => {
     return loggedInUser;
   }, []);
 
-  const registerStudent = useCallback(async (payload) => {
-    const registeredUser = await authApi.registerStudent(payload);
-    setUser(registeredUser);
-    return registeredUser;
-  }, []);
-
   const logout = useCallback(async () => {
     try {
       await authApi.logout();
@@ -75,7 +69,6 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     loading,
     login,
-    registerStudent,
     logout,
     refreshUser,
   };

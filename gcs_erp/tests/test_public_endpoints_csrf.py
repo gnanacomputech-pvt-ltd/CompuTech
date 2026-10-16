@@ -26,6 +26,7 @@ SIGNUP = {
     'confirm_password': 'StrongPassw0rd!2026',
     'full_name': 'CSRF Probe',
     'phone': '9876500000',
+    'college_name': 'Probe Degree College',
 }
 
 

@@ -1,9 +1,20 @@
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 from apps.core.models import (
     User, Role, Permission, UserRole, Institution,
-    Department, Program, Batch, Student, Employee, Enrollment
+    Department, Program, Batch, Student, Employee, Enrollment, SignupRequest
+)
+
+
+# Role codes a self-registering staff member may ask for. Mirrors
+# EmployeeCreateSerializer.ASSIGNABLE_ROLES (SUPER_ADMIN is never
+# self-requestable); CONTENT_MANAGER is the default because that is the role
+# whose domain covers the staff dashboard's website-editing screens.
+ASSIGNABLE_STAFF_ROLE_CODES = (
+    'ADMIN', 'HR', 'ACCOUNTS', 'ACADEMIC_COORDINATOR', 'INTERNSHIP_COORDINATOR',
+    'PROJECT_COORDINATOR', 'TRAINER', 'MENTOR', 'PLACEMENT_OFFICER', 'CONTENT_MANAGER',
 )
 
 
@@ -19,7 +30,23 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['roles'] = user.get_role_codes()
         return token
 
+    # Messages for accounts that exist and have the right password but are
+    # not cleared to sign in yet. Without this, simplejwt's generic
+    # "No active account found with the given credentials" would make a
+    # correctly-registered student think they typed the wrong password.
+    APPROVAL_MESSAGES = {
+        'PENDING': (
+            "Your account is awaiting approval from the Gnana Computech team. "
+            "You will be able to sign in once it has been approved."
+        ),
+        'REJECTED': (
+            "Your account request was not approved. "
+            "Please contact the Gnana Computech team if you believe this is a mistake."
+        ),
+    }
+
     def validate(self, attrs):
+        self._reject_unapproved(attrs)
         data = super().validate(attrs)
         user = self.user
         roles = user.get_role_codes()
@@ -53,6 +80,32 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['_message'] = "Login successful"
         return data
 
+    def _reject_unapproved(self, attrs):
+        """Explain an unapproved login instead of letting it look like a
+        wrong password.
+
+        Only runs for a correct email+password pair, so it never reveals
+        whether an address is registered.
+        """
+        email = (attrs.get('email') or '').strip().lower()
+        password = attrs.get('password') or ''
+        if not email or not password:
+            return
+
+        user = User.objects.filter(email__iexact=email).first()
+        if user is None or not user.check_password(password):
+            return
+
+        message = self.APPROVAL_MESSAGES.get(user.approval_status)
+        if message:
+            # PermissionDenied rather than ValidationError: the credentials
+            # were right, the account just isn't cleared to sign in. It also
+            # makes the reason reach the client as a plain string
+            # (custom_exception_handler maps 403 detail -> error.message),
+            # where a field-keyed validation error would arrive as a list
+            # and show up as a generic "Request failed".
+            raise PermissionDenied(message)
+
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True)
@@ -77,17 +130,19 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     new_password = serializers.CharField(required=True, min_length=8)
 
 
-class UserRegistrationSerializer(serializers.Serializer):
+class BaseSignupSerializer(serializers.Serializer):
     """
-    Self-registration serializer for the public /signup page.
-    Creates a User account with the STUDENT role.
-    Returns JWT tokens on success (same shape as the login response).
+    Credentials every self-registration form collects. Subclasses add the
+    details their own approval step needs (a Student profile needs a college
+    and degree, an Employee needs a designation, an Institution needs an
+    address) -- see SignupRequest for where those are parked until approval.
     """
     email = serializers.EmailField(required=True)
     full_name = serializers.CharField(required=True, max_length=255)
     phone = serializers.CharField(required=False, allow_blank=True, max_length=20)
     password = serializers.CharField(required=True, min_length=8, write_only=True)
     confirm_password = serializers.CharField(required=True, write_only=True)
+    message = serializers.CharField(required=False, allow_blank=True)
 
     def validate_email(self, value):
         value = value.lower().strip()
@@ -103,6 +158,59 @@ class UserRegistrationSerializer(serializers.Serializer):
                 {"confirm_password": "Passwords do not match."}
             )
         return attrs
+
+
+class UserRegistrationSerializer(BaseSignupSerializer):
+    """
+    Self-registration serializer for the public /signup page (student tab).
+    Creates a PENDING User plus a SignupRequest; the account only becomes
+    usable once staff approve it, which is also when the Student profile and
+    the STUDENT role are created.
+    """
+    institution = serializers.PrimaryKeyRelatedField(
+        queryset=Institution.objects.all(), required=False, allow_null=True
+    )
+    college_name = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    degree = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    semester = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=12)
+    branch = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    usn = serializers.CharField(required=False, allow_blank=True, max_length=50)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if not attrs.get('institution') and not (attrs.get('college_name') or '').strip():
+            raise serializers.ValidationError(
+                {"college_name": "Select your college, or type its name if it is not listed."}
+            )
+        return attrs
+
+
+class StaffSignupSerializer(BaseSignupSerializer):
+    """
+    Self-registration for the public /staff-signup page. Approving one of
+    these grants an ERP role, so it is admin-only -- the same reason
+    EmployeeViewSet.create_with_user stays Super-Admin-only.
+    """
+    requested_role = serializers.ChoiceField(
+        choices=ASSIGNABLE_STAFF_ROLE_CODES, required=False, default='CONTENT_MANAGER'
+    )
+    designation = serializers.CharField(required=True, max_length=100)
+    department = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(), required=False, allow_null=True
+    )
+
+
+class InstitutionSignupSerializer(BaseSignupSerializer):
+    """
+    Self-registration for a partner college (the /signup page's Institution
+    tab). Approval creates the Institution record with this user as its
+    coordinator and grants the INSTITUTION_COORDINATOR role.
+    """
+    organization_name = serializers.CharField(required=True, max_length=255)
+    address = serializers.CharField(required=False, allow_blank=True)
+    city = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    state = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    contact_phone = serializers.CharField(required=False, allow_blank=True, max_length=20)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -134,10 +242,25 @@ class DepartmentSerializer(serializers.ModelSerializer):
 
 
 class ProgramSerializer(serializers.ModelSerializer):
+    # Annotated by ProgramViewSet.get_queryset; falls back to a direct count
+    # so a Program serialized outside that viewset still reports correctly.
+    enrollment_count = serializers.SerializerMethodField()
+    active_enrollment_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Program
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_enrollment_count(self, obj):
+        annotated = getattr(obj, 'enrollment_total', None)
+        return annotated if annotated is not None else obj.enrollments.count()
+
+    def get_active_enrollment_count(self, obj):
+        annotated = getattr(obj, 'enrollment_active', None)
+        if annotated is not None:
+            return annotated
+        return obj.enrollments.filter(status='ACTIVE').count()
 
 
 class BatchSerializer(serializers.ModelSerializer):
@@ -233,3 +356,55 @@ class StudentSerializer(serializers.ModelSerializer):
         model = Student
         fields = '__all__'
         read_only_fields = ['id', 'business_id', 'created_at', 'updated_at']
+
+
+class SignupRequestSerializer(serializers.ModelSerializer):
+    """
+    Read-only view of a pending/reviewed signup request for the admin and
+    staff dashboards. Everything a reviewer needs in order to decide is
+    flattened in here so the queue renders from one list call.
+    """
+    full_name = serializers.ReadOnlyField(source='user.full_name')
+    email = serializers.ReadOnlyField(source='user.email')
+    phone = serializers.ReadOnlyField(source='user.phone')
+    user_is_active = serializers.ReadOnlyField(source='user.is_active')
+    approval_status = serializers.ReadOnlyField(source='user.approval_status')
+    institution_name = serializers.ReadOnlyField(source='institution.name')
+    department_name = serializers.ReadOnlyField(source='department.name')
+    reviewed_by_name = serializers.ReadOnlyField(source='reviewed_by.full_name')
+    college = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SignupRequest
+        fields = [
+            'id', 'kind', 'status', 'created_at', 'updated_at',
+            'full_name', 'email', 'phone', 'user_is_active', 'approval_status',
+            'institution', 'institution_name', 'college_name', 'college',
+            'degree', 'semester', 'branch', 'usn',
+            'requested_role', 'designation', 'department', 'department_name',
+            'organization_name', 'address', 'city', 'state', 'contact_phone',
+            'message', 'reviewed_by', 'reviewed_by_name', 'reviewed_at', 'review_notes',
+        ]
+        read_only_fields = fields
+
+    def get_college(self, obj):
+        """Whichever of the two college fields the applicant actually filled in."""
+        return obj.institution.name if obj.institution_id else obj.college_name
+
+
+class SignupApprovalSerializer(serializers.Serializer):
+    """Optional overrides a reviewer can apply while approving a request."""
+    review_notes = serializers.CharField(required=False, allow_blank=True)
+    # STAFF requests only -- the approver can grant a different role than the
+    # one the applicant asked for.
+    role = serializers.ChoiceField(choices=ASSIGNABLE_STAFF_ROLE_CODES, required=False)
+    employee_id = serializers.CharField(required=False, allow_blank=True, max_length=50)
+    # STUDENT requests only -- attach the student to an existing partner
+    # institution instead of creating one from the typed college name.
+    institution = serializers.PrimaryKeyRelatedField(
+        queryset=Institution.objects.all(), required=False, allow_null=True
+    )
+
+
+class SignupRejectionSerializer(serializers.Serializer):
+    review_notes = serializers.CharField(required=False, allow_blank=True)

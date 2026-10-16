@@ -5,7 +5,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.shortcuts import get_object_or_404
 
-from apps.common.permissions import IsERPStaff, IsFullAccessStaff, AttendanceAccess, AssessmentAccess
+from apps.common.permissions import (
+    IsFullAccessStaff, AttendanceAccess, AssessmentAccess, StaffWriteAccess,
+)
 from apps.academics.models import (
     AcademicProject, Internship, Session, Attendance,
     Assignment, AssignmentSubmission, Assessment, AssessmentMark,
@@ -108,14 +110,33 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 
+def _student_batch_ids(user):
+    """Batch ids the given student is enrolled in.
+
+    Batch-wide records (assignments, assessments) are not per-student rows,
+    so they can't be filtered by `enrollment__student__user` the way
+    attendance and marks are — scoping them means scoping by batch.
+    """
+    return Enrollment.objects.filter(student__user=user).values_list('batch_id', flat=True)
+
+
 class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.select_related('batch').all()
     serializer_class = AssignmentSerializer
     # Setting assignments is part of Trainer/Mentor's grading domain.
     permission_classes = [AssessmentAccess]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['batch']
     search_fields = ['title']
+    ordering_fields = ['due_date', 'created_at']
+
+    def get_queryset(self):
+        # A student's portal reads this endpoint directly, so it must return
+        # their own batches' assignments rather than every batch's.
+        user = self.request.user
+        if 'STUDENT' in user.get_role_codes() and not user.is_staff:
+            return self.queryset.filter(batch_id__in=_student_batch_ids(user))
+        return self.queryset
 
 
 class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
@@ -137,9 +158,16 @@ class AssessmentViewSet(viewsets.ModelViewSet):
     serializer_class = AssessmentSerializer
     # Write: Full-access staff or Trainer/Mentor (defines/grades assessments).
     permission_classes = [AssessmentAccess]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['batch', 'assessment_type']
     search_fields = ['title']
+    ordering_fields = ['conducted_at', 'created_at']
+
+    def get_queryset(self):
+        user = self.request.user
+        if 'STUDENT' in user.get_role_codes() and not user.is_staff:
+            return self.queryset.filter(batch_id__in=_student_batch_ids(user))
+        return self.queryset
 
 
 class AssessmentMarkViewSet(viewsets.ModelViewSet):
@@ -161,9 +189,18 @@ class AssessmentMarkViewSet(viewsets.ModelViewSet):
 class MentorAllocationViewSet(viewsets.ModelViewSet):
     queryset = MentorAllocation.objects.select_related('mentor__user', 'enrollment__student__user').all()
     serializer_class = MentorAllocationSerializer
-    permission_classes = [IsERPStaff]
+    # Read: a student may see who their own mentor is (the student portal
+    # shows it) — get_queryset below scopes them to their own allocations.
+    # Allocating a mentor stays staff-only.
+    permission_classes = [StaffWriteAccess]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['mentor', 'enrollment']
+
+    def get_queryset(self):
+        user = self.request.user
+        if 'STUDENT' in user.get_role_codes() and not user.is_staff:
+            return self.queryset.filter(enrollment__student__user=user)
+        return self.queryset
 
 
 class StudentProgressViewSet(viewsets.ReadOnlyModelViewSet):

@@ -83,8 +83,33 @@ class StudentRegistrationInquirySerializer(serializers.ModelSerializer):
 
 class SiteContentSerializer(serializers.ModelSerializer):
     created_by_name = serializers.ReadOnlyField(source='created_by.full_name')
+    # The single field every consumer should render: an uploaded file if
+    # there is one, otherwise the pasted URL. Saves each public page from
+    # re-deciding which of the two is populated.
+    image_src = serializers.SerializerMethodField()
 
     class Meta:
         model = SiteContent
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
+
+    def get_image_src(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            url = obj.image.url
+            # MEDIA_URL is a relative path in local dev, so the SPA (served
+            # from a different port) needs this absolutised. On S3 the url is
+            # already absolute and build_absolute_uri leaves it alone.
+            return request.build_absolute_uri(url) if request else url
+        return obj.image_url or ''
+
+    def validate(self, attrs):
+        """`extra` has to stay a JSON object: multipart form posts send it as
+        a string, and a stray scalar would break every consumer that reads
+        `extra.features`/`extra.category` and friends."""
+        extra = attrs.get('extra')
+        if extra is not None and not isinstance(extra, dict):
+            raise serializers.ValidationError(
+                {"extra": "Must be a JSON object, e.g. {\"category\": \"Workshops\"}."}
+            )
+        return attrs
