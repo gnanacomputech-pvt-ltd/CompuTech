@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { LogOut, Search, Sparkles, AlertTriangle, ChevronRight } from 'lucide-react';
+import { LogOut, Search, Sparkles, AlertTriangle, ChevronRight, ArrowLeftRight } from 'lucide-react';
 import { Logo } from '../../components/Logo';
 
 // Chrome shared by the admin and staff dashboards: sidebar, header, toast.
@@ -19,6 +19,9 @@ export const DashboardShell = ({
   onLogout,
   search,
   toast,
+  // { to, label } for the other console, when this user may open both.
+  // Without it an admin can see the staff console exists but has no way in.
+  switchConsole,
   children,
 }) => {
   const allItems = groups.flatMap((group) => group.items);
@@ -47,9 +50,11 @@ export const DashboardShell = ({
       {/* Sidebar */}
       <aside className="w-full lg:w-64 bg-[#222326] border-b lg:border-b-0 lg:border-r border-gray-800 flex-shrink-0 flex flex-col justify-between p-4 lg:fixed lg:top-0 lg:bottom-0 lg:left-0 lg:z-30 lg:overflow-y-auto">
         <div>
-          <Link to="/" className="block pb-6 pt-2 px-2 border-b border-gray-800">
+          {/* Logo renders its own link to "/", so this is a plain wrapper —
+              nesting an <a> inside an <a> is invalid HTML and React warns. */}
+          <div className="block pb-6 pt-2 px-2 border-b border-gray-800">
             <Logo variant="dark" size="normal" stacked={true} />
-          </Link>
+          </div>
 
           <div className="mt-4 px-2">
             <span className="text-[10px] uppercase tracking-widest font-bold text-[#D4A72C]">{title}</span>
@@ -96,6 +101,15 @@ export const DashboardShell = ({
         </div>
 
         <div className="pt-4 border-t border-gray-800 mt-4 space-y-3">
+          {switchConsole && (
+            <Link
+              to={switchConsole.to}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-[#D4A72C] border border-[#D4A72C]/40 hover:bg-[#D4A72C] hover:text-[#17181A] transition-colors"
+            >
+              <ArrowLeftRight className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">{switchConsole.label}</span>
+            </Link>
+          )}
           <div className="px-3">
             <p className="text-xs font-bold text-white truncate">{user?.full_name || 'Signed in'}</p>
             <p className="text-[11px] text-gray-500 truncate">{user?.email}</p>

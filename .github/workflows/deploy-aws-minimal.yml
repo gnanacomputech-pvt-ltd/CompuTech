@@ -54,6 +54,13 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # The `test` job above gates the backend. These cover the React side:
+      # role/route access and the dashboards actually rendering. An earlier
+      # release shipped a staff console no admin account could open because
+      # nothing exercised a route before deploying.
+      - name: Run frontend tests
+        run: npm run test:run
+
       - name: Build frontend
         run: npm run build
         env:

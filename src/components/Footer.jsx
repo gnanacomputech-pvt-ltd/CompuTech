@@ -84,7 +84,10 @@ export const Footer = () => {
         {/* Bottom Footer Bar */}
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#b7c0e6]">
           <p>© 2026 Gnana Computech Solutions Private Limited</p>
-          <Link to="/login" className="hover:text-[#ffcc00] transition-colors">Portal Login</Link>
+          <div className="flex items-center gap-4">
+            <Link to="/login" className="hover:text-[#ffcc00] transition-colors">Portal Login</Link>
+            <Link to="/staff-signup" className="hover:text-[#ffcc00] transition-colors">Staff Sign Up</Link>
+          </div>
         </div>
 
       </div>

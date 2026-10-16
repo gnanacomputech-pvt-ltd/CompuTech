@@ -13,6 +13,7 @@ import { ContentSectionManager } from './ContentSectionManager';
 import { ProgramManager } from './ProgramManager';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { canWriteDomain } from '../../lib/auth/permissions';
+import { isAdminUser } from '../../lib/auth/roles';
 import { students as studentsApi, institutions as institutionsApi } from '../../lib/api/core';
 import { signupRequests } from '../../lib/api/signup';
 import { GALLERY_CATEGORIES, BLOG_CATEGORIES } from '../../lib/api/content';
@@ -192,6 +193,9 @@ export const StaffDashboard = () => {
       user={user}
       onLogout={handleLogout}
       toast={toast}
+      switchConsole={isAdminUser(user)
+        ? { to: '/admin/dashboard', label: 'Back to admin console' }
+        : null}
       search={activeTab === 'Student Register' ? {
         value: searchTerm,
         onChange: setSearchTerm,

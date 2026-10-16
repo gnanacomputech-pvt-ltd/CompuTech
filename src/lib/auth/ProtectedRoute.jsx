@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { userHasPortalAccess } from './roles';
+import { userHasPortalAccess, portalHomePath } from './roles';
 
 // Wraps a portal's routes (/admin/*, /staff/*, /student/*, /institution/*): unauthenticated
 // visitors bounce to /login (remembering where they were headed), and an
@@ -23,8 +23,10 @@ export const ProtectedRoute = ({ portal, children }) => {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
+  // Wrong console for this account: send them to their own rather than to
+  // /login, which looks like being signed out for no reason.
   if (!userHasPortalAccess(user, portal)) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={portalHomePath(user)} replace />;
   }
 
   return children;

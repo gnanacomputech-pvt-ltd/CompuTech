@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, User, BookOpen, CheckSquare, FileText,
   FolderGit2, DollarSign, Award, LogOut, Clock,
@@ -61,11 +61,16 @@ const Panel = ({ title, icon: Icon, children, actions }) => (
   </div>
 );
 
+// `children` may be a function. JSX children are built before this
+// component gets to decide whether to show them, so a block that
+// dereferences the very data `isEmpty` guards (a student with no
+// enrollment yet, say) would crash while rendering the empty state. Passing
+// a function defers that until we know there is something to show.
 const State = ({ loading, error, isEmpty, emptyMessage, children }) => {
   if (loading) return <p className="text-xs text-gray-500 py-4">Loading…</p>;
   if (error) return <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl p-4">{error}</p>;
   if (isEmpty) return <p className="text-xs text-gray-500 py-4">{emptyMessage}</p>;
-  return children;
+  return typeof children === 'function' ? children() : children;
 };
 
 const Row = ({ label, value, tone }) => (
@@ -239,9 +244,11 @@ export const StudentDashboard = () => {
       {/* Sidebar */}
       <aside className="w-full lg:w-64 bg-[#17181A] text-white flex-shrink-0 flex flex-col justify-between p-4 border-b lg:border-b-0 lg:border-r border-[#D4A72C]/30 lg:fixed lg:top-0 lg:bottom-0 lg:left-0 lg:z-30 lg:overflow-y-auto">
         <div>
-          <Link to="/" className="block pb-6 pt-2 px-2 border-b border-gray-800">
+          {/* Logo renders its own link to "/", so this is a plain wrapper —
+              nesting an <a> inside an <a> is invalid HTML and React warns. */}
+          <div className="block pb-6 pt-2 px-2 border-b border-gray-800">
             <Logo variant="dark" size="normal" stacked={true} />
-          </Link>
+          </div>
 
           <div className="my-4 p-3 rounded-xl bg-gray-900 border border-gray-800 text-xs">
             <p className="font-bold text-white truncate">{studentName}</p>
@@ -301,6 +308,7 @@ export const StudentDashboard = () => {
                 isEmpty={!primaryEnrollment}
                 emptyMessage="You have no enrollments yet. Once a coordinator enrolls you in a program it will appear here."
               >
+                {() => (
                 <>
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="space-y-2 min-w-0">
@@ -337,6 +345,7 @@ export const StudentDashboard = () => {
                     </div>
                   </div>
                 </>
+                )}
               </State>
             </div>
 
@@ -429,6 +438,7 @@ export const StudentDashboard = () => {
               isEmpty={!student}
               emptyMessage="Your student profile has not been created yet. It appears once your registration is approved."
             >
+              {() => (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Panel title="Academic Information" icon={User}>
                   <div className="space-y-3 text-xs">
@@ -458,6 +468,7 @@ export const StudentDashboard = () => {
                   </div>
                 </Panel>
               </div>
+              )}
             </State>
           </div>
         )}

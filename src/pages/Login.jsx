@@ -165,11 +165,19 @@ export const Login = () => {
           </Button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-gray-100 text-center text-xs text-[#6B6B6B]">
-          Don't have an account yet?{' '}
-          <Link to="/signup" className="font-bold text-[#D4A72C] hover:underline">
-            Create an Account
-          </Link>
+        <div className="mt-8 pt-6 border-t border-gray-100 text-center text-xs text-[#6B6B6B] space-y-2">
+          <p>
+            Don't have an account yet?{' '}
+            <Link to="/signup" className="font-bold text-[#D4A72C] hover:underline">
+              Create an Account
+            </Link>
+          </p>
+          <p>
+            Joining the Gnana Computech team?{' '}
+            <Link to="/staff-signup" className="font-bold text-[#D4A72C] hover:underline">
+              Request staff access
+            </Link>
+          </p>
         </div>
 
       </div>

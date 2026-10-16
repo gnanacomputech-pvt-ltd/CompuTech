@@ -397,6 +397,7 @@ export const AdminDashboard = () => {
       user={user}
       onLogout={handleLogout}
       toast={toast}
+      switchConsole={{ to: '/staff/dashboard', label: 'Open staff console' }}
       search={searchable ? {
         value: searchTerm,
         onChange: setSearchTerm,
