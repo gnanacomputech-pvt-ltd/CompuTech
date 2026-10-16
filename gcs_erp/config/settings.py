@@ -302,9 +302,19 @@ else:
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
+    # JWT only in production. SessionAuthentication is deliberately DEBUG-only:
+    # DRF calls enforce_csrf() whenever it authenticates a request from a Django
+    # session, so any browser holding an /admin/ session cookie had every public
+    # POST rejected with "CSRF Failed: CSRF token missing" - signup, the contact
+    # form and project registration all broke for staff testing the live site,
+    # because the SPA sends JSON with a JWT and no CSRF token.
+    # Authenticated SPA calls were never affected: JWTAuthentication comes first
+    # and short-circuits, so session auth is only reached when no token is sent,
+    # which is exactly the public endpoints. Keeping it under DEBUG preserves the
+    # browsable API for local development without the production footgun.
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
+        ('rest_framework_simplejwt.authentication.JWTAuthentication',)
+        + (('rest_framework.authentication.SessionAuthentication',) if DEBUG else ())
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',

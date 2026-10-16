@@ -17,6 +17,7 @@ export const Contact = () => {
 
   const [errors, setErrors] = useState({});
   const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -46,6 +47,7 @@ export const Contact = () => {
     try {
       await submitContactInquiry(formData);
       setIsSubmitted(true);
+      setToastType('success');
       setToastMessage('Thank you! Your message has been submitted.');
       setFormData({
         name: '',
@@ -62,6 +64,7 @@ export const Contact = () => {
         });
         setErrors(mapped);
       }
+      setToastType('error');
       setToastMessage(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
@@ -253,7 +256,7 @@ export const Contact = () => {
 
       </div>
 
-      <Toast message={toastMessage} onClose={() => setToastMessage('')} />
+      <Toast message={toastMessage} type={toastType} onClose={() => setToastMessage('')} />
     </div>
   );
 };

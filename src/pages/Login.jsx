@@ -158,7 +158,7 @@ export const Login = () => {
 
       </div>
 
-      <Toast message={toastMessage} onClose={() => setToastMessage('')} />
+      <Toast message={toastMessage} type="success" onClose={() => setToastMessage('')} />
     </div>
   );
 };

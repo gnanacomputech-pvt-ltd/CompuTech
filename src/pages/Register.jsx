@@ -21,6 +21,7 @@ export const Register = () => {
   const [errors, setErrors] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
   const [submitting, setSubmitting] = useState(false);
 
   const validate = () => {
@@ -58,6 +59,7 @@ export const Register = () => {
         message: formData.message,
       });
       setIsSubmitted(true);
+      setToastType('success');
       setToastMessage('Registration Successful! Our academic coordinator will contact you shortly.');
     } catch (err) {
       if (err instanceof ApiError && err.fieldErrors && typeof err.fieldErrors === 'object') {
@@ -68,6 +70,7 @@ export const Register = () => {
         });
         setErrors(mapped);
       }
+      setToastType('error');
       setToastMessage(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
@@ -285,7 +288,7 @@ export const Register = () => {
 
       </div>
 
-      <Toast message={toastMessage} onClose={() => setToastMessage('')} />
+      <Toast message={toastMessage} type={toastType} onClose={() => setToastMessage('')} />
     </div>
   );
 };

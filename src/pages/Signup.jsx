@@ -20,6 +20,7 @@ export const Signup = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState({});
   const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success');
   const [submitting, setSubmitting] = useState(false);
   const [institutionInquirySent, setInstitutionInquirySent] = useState(false);
 
@@ -52,6 +53,7 @@ export const Signup = () => {
           full_name: name,
           phone,
         });
+        setToastType('success');
         setToastMessage('Account created successfully! Redirecting to dashboard...');
         setTimeout(() => navigate(portalHomePath(user)), 1000);
       } else {
@@ -75,6 +77,7 @@ export const Signup = () => {
         });
         setErrors((prev) => ({ ...prev, ...mapped }));
       }
+      setToastType('error');
       setToastMessage(err instanceof ApiError && typeof err.message === 'string' ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
@@ -240,7 +243,7 @@ export const Signup = () => {
 
       </div>
 
-      <Toast message={toastMessage} onClose={() => setToastMessage('')} />
+      <Toast message={toastMessage} type={toastType} onClose={() => setToastMessage('')} />
     </div>
   );
 };
