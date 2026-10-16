@@ -11,8 +11,10 @@ on signup, the contact form and project registration. Authenticated SPA calls
 were never affected, because JWTAuthentication comes first and short-circuits -
 session auth is only reached when no token is sent, i.e. on public endpoints.
 """
+from django.utils.module_loading import import_string
 import pytest
 from rest_framework.test import APIClient
+from rest_framework.views import APIView
 
 from apps.core.models import User
 
@@ -35,6 +37,9 @@ def _set_authenticators(settings, classes):
         **settings.REST_FRAMEWORK,
         'DEFAULT_AUTHENTICATION_CLASSES': classes,
     }
+    APIView.authentication_classes = [
+        import_string(c) if isinstance(c, str) else c for c in classes
+    ]
 
 
 @pytest.fixture
