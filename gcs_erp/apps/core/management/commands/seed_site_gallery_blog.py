@@ -8,7 +8,10 @@ that original content across so the pages look the way they always did,
 after which everything is editable from the staff dashboard.
 
 Idempotent: matches on (section, title), so re-running updates rather than
-duplicating.
+duplicating. Pass --only-if-empty to skip a section that already has content,
+which is how the container entrypoint runs it -- that way a fresh deployment
+gets the original content, but an item staff deleted is never resurrected on
+the next deploy.
 """
 from datetime import datetime
 
@@ -155,10 +158,33 @@ def _as_datetime(date_str):
 class Command(BaseCommand):
     help = "Seed the gallery and blog sections of the marketing site CMS."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--only-if-empty',
+            action='store_true',
+            help=(
+                "Skip a section that already has any content. This is what makes "
+                "the command safe to run on every deploy: it fills an empty "
+                "section but never recreates an item staff deleted."
+            ),
+        )
+
     def handle(self, *args, **options):
         created = updated = 0
+        only_if_empty = options['only_if_empty']
 
-        for order, item in enumerate(GALLERY):
+        def should_seed(section):
+            if not only_if_empty:
+                return True
+            if SiteContent.objects.filter(section=section).exists():
+                self.stdout.write(f"Section '{section}' already has content - skipping.")
+                return False
+            return True
+
+        seed_gallery = should_seed('gallery')
+        seed_blog = should_seed('blog')
+
+        for order, item in enumerate(GALLERY if seed_gallery else []):
             _, was_created = SiteContent.objects.update_or_create(
                 section='gallery',
                 title=item['title'],
@@ -174,7 +200,7 @@ class Command(BaseCommand):
             created += was_created
             updated += not was_created
 
-        for order, item in enumerate(BLOGS):
+        for order, item in enumerate(BLOGS if seed_blog else []):
             _, was_created = SiteContent.objects.update_or_create(
                 section='blog',
                 title=item['title'],

@@ -68,9 +68,18 @@ USER appuser
 EXPOSE 8000
 
 # ---- Entrypoint ----
-# Collect staticfiles, apply migrations, then launch Gunicorn.
+# Collect staticfiles, apply migrations, seed the two CMS sections if they are
+# empty, then launch Gunicorn.
 # - Migration is idempotent (no-op if already applied). When running several
 #   API replicas, set RUN_MIGRATIONS=false on all but one (or run
 #   `python manage.py migrate` as a one-off task) to avoid concurrent migrations.
 # - collectstatic always writes to the local STATIC_ROOT served by WhiteNoise
-CMD ["sh", "-c", "python manage.py collectstatic --noinput && if [ \"${RUN_MIGRATIONS:-true}\" = \"true\" ]; then python manage.py migrate --noinput; fi && exec gunicorn config.wsgi:application --config docker/gunicorn.conf.py"]
+# - The gallery and blog pages read SiteContent rather than the hardcoded
+#   frontend arrays they used to, so a database with no rows for those
+#   sections renders them empty. --only-if-empty fills them on a fresh
+#   deployment and skips any section that already has content, so an item
+#   staff deleted is never resurrected. The seed runs in a subshell ending
+#   in `|| true` so that failing to write decorative content is never a
+#   reason to refuse to boot -- while a failed *migration* still is, which
+#   is why the `|| true` is scoped to the seed and not the whole chain.
+CMD ["sh", "-c", "python manage.py collectstatic --noinput && if [ \"${RUN_MIGRATIONS:-true}\" = \"true\" ]; then python manage.py migrate --noinput && (python manage.py seed_site_gallery_blog --only-if-empty || true); fi && exec gunicorn config.wsgi:application --config docker/gunicorn.conf.py"]
