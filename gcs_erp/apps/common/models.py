@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime
 from django.db import models
@@ -99,3 +100,23 @@ def generate_business_id(prefix: str, count: int, year: int = None) -> str:
     if year is None:
         year = timezone.now().year
     return f"GCS-{prefix.upper()}-{year}-{count:06d}"
+
+
+def next_business_id(model, prefix: str, field: str = 'business_id') -> str:
+    """
+    Next unused business id for `model`.
+
+    Derived from the highest numeric suffix that exists rather than from a
+    row count, and read through `all_objects` so soft-deleted rows are
+    included. Both details matter: the unique constraint covers every row in
+    the table, while the default manager hides soft-deleted ones, so
+    counting visible rows can hand out an id that is already taken and the
+    insert then fails with an IntegrityError.
+    """
+    manager = getattr(model, 'all_objects', model._default_manager)
+    highest = 0
+    for value in manager.values_list(field, flat=True):
+        match = re.search(r'(\d+)$', value or '')
+        if match:
+            highest = max(highest, int(match.group(1)))
+    return generate_business_id(prefix, highest + 1)

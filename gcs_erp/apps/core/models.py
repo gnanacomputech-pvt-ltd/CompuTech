@@ -2,7 +2,9 @@ import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.utils import timezone
-from apps.common.models import TimeStampedModel, SoftDeletableModel, AuditModel, generate_business_id
+from apps.common.models import (
+    TimeStampedModel, SoftDeletableModel, AuditModel, generate_business_id, next_business_id,
+)
 
 
 class UserManager(BaseUserManager):
@@ -256,8 +258,7 @@ class Batch(AuditModel):
 
     def save(self, *args, **kwargs):
         if not self.business_id:
-            count = Batch.objects.count() + 1
-            self.business_id = generate_business_id('BAT', count)
+            self.business_id = next_business_id(Batch, 'BAT')
         super().save(*args, **kwargs)
 
 
@@ -279,8 +280,7 @@ class Student(AuditModel):
 
     def save(self, *args, **kwargs):
         if not self.business_id:
-            count = Student.objects.count() + 1
-            self.business_id = generate_business_id('STU', count)
+            self.business_id = next_business_id(Student, 'STU')
         super().save(*args, **kwargs)
 
 
@@ -342,8 +342,7 @@ class Enrollment(AuditModel):
 
     def save(self, *args, **kwargs):
         if not self.business_id:
-            count = Enrollment.objects.count() + 1
-            self.business_id = generate_business_id('ENR', count)
+            self.business_id = next_business_id(Enrollment, 'ENR')
         super().save(*args, **kwargs)
 
 

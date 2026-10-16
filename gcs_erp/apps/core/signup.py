@@ -52,11 +52,17 @@ def _unique_code(model, field, base, fallback_prefix):
     Institutions and departments are created from a free-text name typed by
     an applicant, so the obvious code ("ACHARYA") can easily already exist;
     suffix until it does not.
+
+    Checked through `all_objects` because the unique constraint covers
+    soft-deleted rows too, while the default manager hides them -- otherwise
+    approving a signup that names a college someone deleted earlier fails
+    with "UNIQUE constraint failed: core_institutions.code".
     """
+    manager = getattr(model, 'all_objects', model._default_manager)
     base = (slugify(base) or fallback_prefix.lower()).upper().replace('-', '_')[:40]
     candidate = base
     suffix = 2
-    while model.objects.filter(**{field: candidate}).exists():
+    while manager.filter(**{field: candidate}).exists():
         candidate = f"{base}_{suffix}"[:50]
         suffix += 1
     return candidate
@@ -69,8 +75,11 @@ def _next_employee_id():
     Derived from the highest existing numeric suffix rather than a row count,
     so deleting an employee can never hand out an id that is already taken.
     """
+    # all_objects: a soft-deleted employee still occupies its employee_id as
+    # far as the unique constraint is concerned.
+    manager = getattr(Employee, 'all_objects', Employee._default_manager)
     highest = 0
-    for existing in Employee.objects.values_list('employee_id', flat=True):
+    for existing in manager.values_list('employee_id', flat=True):
         match = re.search(r'(\d+)$', existing or '')
         if match:
             highest = max(highest, int(match.group(1)))

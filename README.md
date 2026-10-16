@@ -164,8 +164,17 @@ pytest                                    # full suite
 ```
 
 ```bash
+npm run test:run                          # frontend suite (vitest + jsdom)
 npm run build                             # frontend must build clean
 ```
+
+The frontend suite (`src/__tests__/`) renders real routes: which console each
+role lands on and may open, both dashboards' menus, the student portal with
+and without records, the gallery and blog reading live content, and the
+signup forms. It exists because an earlier release shipped a staff console
+that no admin account could open — every API contract had been verified
+against a live server, but nothing had rendered a route or followed a link.
+It gates the AWS deploy alongside the backend suite.
 
 ---
 
