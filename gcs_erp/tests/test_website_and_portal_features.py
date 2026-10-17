@@ -274,8 +274,6 @@ class WebsiteInquiryTests(APITestCase):
         self.assertEqual(event_reg.status, 'ATTENDED')
 
 
-
-
 class UserRegistrationAuthTests(APITestCase):
     """Tests for student self-registration endpoint."""
 

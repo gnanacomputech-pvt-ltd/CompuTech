@@ -187,10 +187,10 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
-
 # ---------------------------------------------------------------------------
 # Site Content (marketing-site CMS)
 # ---------------------------------------------------------------------------
+
 
 class SiteContentSerializer(serializers.ModelSerializer):
     created_by_name = serializers.ReadOnlyField(source='created_by.full_name')

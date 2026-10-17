@@ -310,7 +310,6 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'patch', 'delete', 'head', 'options']
 
 
-
 # ---------------------------------------------------------------------------
 # Site Content (marketing-site CMS) — public read, ERP-staff-only write
 # ---------------------------------------------------------------------------
@@ -336,6 +335,11 @@ class SiteContentViewSet(viewsets.ModelViewSet):
     filterset_fields = ['section', 'is_active']
     search_fields = ['title', 'subtitle', 'description']
     ordering_fields = ['display_order', 'created_at', 'event_start']
+
+    def get_throttles(self):
+        if self.action in ('list', 'retrieve'):
+            return []
+        return super().get_throttles()
 
     def get_permissions(self):
         if self.action in ('list', 'retrieve'):

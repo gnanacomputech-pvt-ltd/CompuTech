@@ -234,4 +234,3 @@ def send_event_registration_to_staff(event_reg):
     }
     subject = f"[Event Registration] {event_reg.full_name} - {event_reg.event_title}"
     return _send_staff_email(subject, context, reply_to=event_reg.email)
-

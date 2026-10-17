@@ -280,6 +280,11 @@ class ProgramViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'code']
     ordering_fields = ['title', 'created_at', 'base_fee', 'duration_weeks']
 
+    def get_throttles(self):
+        if self.action in ('list', 'retrieve'):
+            return []
+        return super().get_throttles()
+
     def get_permissions(self):
         # Public Courses/Internships pages read this directly. Writes are
         # Full-access staff or the Content Manager, whose domain covers the

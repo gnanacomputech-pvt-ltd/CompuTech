@@ -365,4 +365,3 @@ def queue_signin_email(user, ip_address=None, user_agent=None):
     except Exception:
         logger.exception("Sign-in notification email to %s could not be sent", getattr(user, 'email', '<unknown>'))
         return 'failed'
-
