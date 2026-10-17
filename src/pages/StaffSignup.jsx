@@ -30,7 +30,12 @@ export const StaffSignup = () => {
     const errs = {};
     if (!fullName.trim()) errs.full_name = 'Full name is required';
     if (!email.trim()) errs.email = 'Work email address is required';
-    if (!phone.trim()) errs.phone = 'Phone number is required';
+    const cleanPhone = phone.trim();
+    if (!cleanPhone) {
+      errs.phone = 'Phone number is required';
+    } else if (!/^\d{10}$/.test(cleanPhone)) {
+      errs.phone = 'Enter a valid 10-digit phone number';
+    }
     if (!designation.trim()) errs.designation = 'Designation is required';
     if (!password) errs.password = 'Password is required';
     else if (password.length < 8) errs.password = 'Password must be at least 8 characters';
@@ -146,13 +151,23 @@ export const StaffSignup = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-[#222326] mb-1">Phone Number *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#222326]">Phone Number *</label>
+                  <span className="text-[11px] text-gray-500 font-medium">
+                    {phone.length}/10 digits
+                  </span>
+                </div>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                   <input
                     type="tel"
+                    maxLength={10}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setPhone(digits);
+                      if (errors.phone) setErrors({ ...errors, phone: null });
+                    }}
                     placeholder="9876543210"
                     className={inputClass}
                   />

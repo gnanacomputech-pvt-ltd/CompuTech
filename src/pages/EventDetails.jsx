@@ -85,7 +85,7 @@ export const EventDetails = () => {
             {isUpcoming && (
               <div className="pt-4 flex items-center justify-between border-t border-gray-800">
                 <span className="text-xs text-[#D4A72C] font-semibold">{event.seatsAvailable}</span>
-                <Button to="/register" variant="primary" size="lg">
+                <Button to={`/register-event?event=${encodeURIComponent(event.title || '')}`} variant="primary" size="lg">
                   Register Now for Event
                 </Button>
               </div>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Sign-In Notification</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f4f6; color: #222326; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 24px auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+        .header { background: #222326; padding: 32px; text-align: center; }
+        .brand { color: #D4A72C; font-weight: 700; font-size: 1.2rem; letter-spacing: 0.08em; text-transform: uppercase; }
+        .body { padding: 40px 32px; line-height: 1.6; color: #444; }
+        .body h2 { color: #222326; margin-bottom: 16px; font-size: 1.35rem; }
+        .alert-box { background: #fdfaf0; border-left: 4px solid #D4A72C; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+        .details-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.9rem; }
+        .details-table td { padding: 10px 12px; border-bottom: 1px solid #f0ede6; }
+        .details-table td.label { font-weight: 600; color: #555; width: 35%; background: #faf8f5; }
+        .button { display: inline-block; background: #D4A72C; color: #fff !important; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 16px 0; }
+        .footer { background: #f8f8f8; padding: 20px 32px; text-align: center; font-size: 0.78rem; color: #888; }
+        .meta { color: #888; font-size: 0.85rem; margin-top: 20px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="brand">Gnana Computech Solutions</span>
+        </div>
+        <div class="body">
+            <h2>Sign-In Notification</h2>
+            <p>Hi {{ user.full_name|default:user.email }},</p>
+            <p>A new sign-in to your <strong>Gnana Computech Solutions Portal</strong> account was just detected.</p>
+
+            <table class="details-table">
+                <tr>
+                    <td class="label">Account Email</td>
+                    <td>{{ user.email }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Date & Time</td>
+                    <td>{{ signin_time }}</td>
+                </tr>
+                <tr>
+                    <td class="label">IP Address</td>
+                    <td>{{ ip_address }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Device / Browser</td>
+                    <td>{{ user_agent }}</td>
+                </tr>
+            </table>
+
+            <div class="alert-box">
+                <strong>Didn't sign in?</strong>
+                <p style="margin: 6px 0 0; font-size: 0.88rem; color: #555;">
+                    If this was not you, someone else may be accessing your account. We strongly recommend that you reset your password immediately.
+                </p>
+                <div style="text-align: center; margin-top: 14px;">
+                    <a href="{{ reset_url }}" class="button">Reset Password</a>
+                </div>
+            </div>
+
+            <p class="meta">
+                If this sign-in was made by you, you can safely ignore this notification.<br>
+                For any security concerns or assistance, please contact us at <a href="mailto:{{ support_email }}" style="color: #D4A72C;">{{ support_email }}</a>.
+            </p>
+        </div>
+        <div class="footer">
+            Gnana Computech Solutions Private Limited<br>
+            ISO 9001:2015 Certified &middot; Bangalore North, Karnataka, India
+        </div>
+    </div>
+</body>
+</html>

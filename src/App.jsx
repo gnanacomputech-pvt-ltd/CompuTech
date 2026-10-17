@@ -20,7 +20,11 @@ import { BlogDetails } from './pages/BlogDetails';
 import { GalleryPage } from './pages/GalleryPage';
 import { TestimonialsPage } from './pages/TestimonialsPage';
 import { Contact } from './pages/Contact';
+import { Enquire } from './pages/Enquire';
 import { Register } from './pages/Register';
+import { ProjectRegister } from './pages/ProjectRegister';
+import { InternshipRegister } from './pages/InternshipRegister';
+import { EventRegister } from './pages/EventRegister';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import { StaffSignup } from './pages/StaffSignup';
@@ -81,7 +85,11 @@ export const App = () => {
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/testimonials" element={<TestimonialsPage />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/enquire" element={<Enquire />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/register-project" element={<ProjectRegister />} />
+          <Route path="/register-internship" element={<InternshipRegister />} />
+          <Route path="/register-event" element={<EventRegister />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/staff-signup" element={<StaffSignup />} />

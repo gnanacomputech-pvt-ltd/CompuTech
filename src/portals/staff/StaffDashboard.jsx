@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, UserCheck, Users, BookOpen, Briefcase, Info, Calendar,
   Quote, Wrench, Newspaper, Image as ImageIcon, Mail, Phone, ExternalLink,
+  FolderGit2,
 } from 'lucide-react';
 import { DashboardShell } from '../shared/DashboardShell';
 import { SignupQueue, ApprovalNote } from '../shared/SignupQueue';
@@ -11,6 +12,7 @@ import {
 } from '../shared/ui';
 import { ContentSectionManager } from './ContentSectionManager';
 import { ProgramManager } from './ProgramManager';
+import { InquiriesManager } from './InquiriesManager';
 import { useAuth } from '../../lib/auth/AuthContext';
 import { canWriteDomain } from '../../lib/auth/permissions';
 import { isAdminUser } from '../../lib/auth/roles';
@@ -42,6 +44,26 @@ const MENU = [
         name: 'Student Sign-ups', icon: UserCheck,
         heading: 'Student Sign-ups',
         description: 'Accept or reject new student registrations. Nobody can sign in until you approve them.',
+      },
+      {
+        name: 'Project Registrations', icon: FolderGit2,
+        heading: 'Academic Project Registrations',
+        description: 'Review final-year project guidance registrations for BCA, MCA and Engineering students.',
+      },
+      {
+        name: 'Internship Applications', icon: Briefcase,
+        heading: 'Internship Applications',
+        description: 'Review student and graduate applications for corporate IT and software internships.',
+      },
+      {
+        name: 'Event Registrations', icon: Calendar,
+        heading: 'Event & Workshop Registrations',
+        description: 'Review attendee passes and registrations for workshops and tech symposiums.',
+      },
+      {
+        name: 'Enquiries & Leads', icon: Mail,
+        heading: 'Enquiries & Leads Hub',
+        description: 'Review website enquiries, contact requests and course pre-registration leads with candidate details.',
       },
       {
         name: 'Student Register', icon: Users,
@@ -246,25 +268,48 @@ export const StaffDashboard = () => {
           <SectionCard title="Start here" description="The two things this dashboard is for.">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
+                onClick={() => handleTabChange('Project Registrations')}
+                className="text-left rounded-2xl border border-gray-800 bg-[#17181A] p-4 hover:border-[#D4A72C] transition-colors"
+              >
+                <span className="text-[10px] uppercase tracking-wider font-bold text-[#D4A72C]">Projects</span>
+                <p className="text-sm font-bold text-white mt-1">Project Registrations</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Final year project guidance requests and team registrations
+                </p>
+              </button>
+
+              <button
+                onClick={() => handleTabChange('Internship Applications')}
+                className="text-left rounded-2xl border border-gray-800 bg-[#17181A] p-4 hover:border-[#D4A72C] transition-colors"
+              >
+                <span className="text-[10px] uppercase tracking-wider font-bold text-[#D4A72C]">Internships</span>
+                <p className="text-sm font-bold text-white mt-1">Internship Applications</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Candidate track applications, resumes & duration preferences
+                </p>
+              </button>
+
+              <button
+                onClick={() => handleTabChange('Event Registrations')}
+                className="text-left rounded-2xl border border-gray-800 bg-[#17181A] p-4 hover:border-[#D4A72C] transition-colors"
+              >
+                <span className="text-[10px] uppercase tracking-wider font-bold text-[#D4A72C]">Events</span>
+                <p className="text-sm font-bold text-white mt-1">Event Registrations</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Workshop and symposium attendee passes & participant counts
+                </p>
+              </button>
+
+              <button
                 onClick={() => handleTabChange('Student Sign-ups')}
                 className="text-left rounded-2xl border border-gray-800 bg-[#17181A] p-4 hover:border-[#D4A72C] transition-colors"
               >
-                <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500">1. Students</span>
-                <p className="text-sm font-bold text-white mt-1">Review student sign-ups</p>
+                <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500">Sign-ups</span>
+                <p className="text-sm font-bold text-white mt-1">Student Portal Accounts</p>
                 <p className="text-[11px] text-gray-400 mt-1">
                   {pendingCounts.student
                     ? `${pendingCounts.student} waiting for a decision`
                     : 'Nothing waiting right now'}
-                </p>
-              </button>
-              <button
-                onClick={() => handleTabChange('Gallery')}
-                className="text-left rounded-2xl border border-gray-800 bg-[#17181A] p-4 hover:border-[#D4A72C] transition-colors"
-              >
-                <span className="text-[10px] uppercase tracking-wider font-bold text-gray-500">2. Website</span>
-                <p className="text-sm font-bold text-white mt-1">Edit the public website</p>
-                <p className="text-[11px] text-gray-400 mt-1">
-                  Photos, courses, events, articles and more — changes go live immediately
                 </p>
               </button>
             </div>
@@ -284,6 +329,26 @@ export const StaffDashboard = () => {
           allowInstitutionOverride
           onDecided={() => { loadPendingCounts(); studentsRes.load(); }}
         />
+      )}
+
+      {/* ----------------------------------------- 1. PROJECT REGISTRATIONS */}
+      {activeTab === 'Project Registrations' && (
+        <InquiriesManager initialSection="projects" showToast={showToast} />
+      )}
+
+      {/* ----------------------------------------- 1. INTERNSHIP APPLICATIONS */}
+      {activeTab === 'Internship Applications' && (
+        <InquiriesManager initialSection="internships" showToast={showToast} />
+      )}
+
+      {/* ----------------------------------------- 1. EVENT REGISTRATIONS */}
+      {activeTab === 'Event Registrations' && (
+        <InquiriesManager initialSection="events" showToast={showToast} />
+      )}
+
+      {/* ----------------------------------------- 1. ENQUIRIES & LEADS */}
+      {activeTab === 'Enquiries & Leads' && (
+        <InquiriesManager initialSection="contacts" showToast={showToast} />
       )}
 
       {/* ----------------------------------------- 1. STUDENT REGISTER */}

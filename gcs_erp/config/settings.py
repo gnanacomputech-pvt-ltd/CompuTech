@@ -448,7 +448,7 @@ CELERY_TASK_REJECT_ON_WORKER_LOST = True
 
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 
-# Email Configuration (Supports AWS SES SMTP, Gmail, or Console)
+# Email Configuration (Supports AWS SES SMTP, Brevo SMTP, Gmail, or Console)
 AWS_SES_REGION_NAME = os.getenv('AWS_SES_REGION_NAME', os.getenv('AWS_REGION', 'ap-south-1'))
 USE_SES = os.getenv('USE_SES', 'False').lower() in ('true', '1', 't')
 
@@ -460,11 +460,11 @@ if USE_SES:
     EMAIL_HOST_USER = os.getenv('AWS_SES_SMTP_USERNAME') or os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('AWS_SES_SMTP_PASSWORD') or os.getenv('EMAIL_HOST_PASSWORD', '')
 else:
-    EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp-relay.brevo.com')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
     EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 't')
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'be1c89001@smtp-brevo.com')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 
 # An SMTP backend with no password authenticates against nothing: every send
@@ -477,12 +477,12 @@ if EMAIL_BACKEND.endswith('smtp.EmailBackend') and not EMAIL_HOST_PASSWORD:
     warnings.warn(
         f'EMAIL_BACKEND is SMTP ({EMAIL_HOST}) but no password is set - '
         'falling back to the console backend. Set EMAIL_HOST_PASSWORD '
-        '(Gmail app password) or AWS_SES_SMTP_PASSWORD to send real email.',
+        '(Brevo key or Gmail app password) to send real email.',
         RuntimeWarning,
     )
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@gnanacomputech.com')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'info.gcsminds@gmail.com')
 SERVER_EMAIL = os.getenv('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
 
 # Business Logic Constants (Section 8 — Certificate Eligibility)

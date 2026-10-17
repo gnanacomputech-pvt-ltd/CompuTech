@@ -68,7 +68,7 @@ export const InternshipCard = ({ internship }) => {
         <span className="text-xs font-medium text-gray-500">
           Eligibility: <strong className="text-[#222326]">{internship.eligibility.split(' ')[0]}+</strong>
         </span>
-        <Button to="/register" variant="primary" size="sm">
+        <Button to={`/register-internship?track=${encodeURIComponent(internship.title || '')}`} variant="primary" size="sm">
           Apply For Internship
         </Button>
       </div>

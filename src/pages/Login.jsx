@@ -34,9 +34,17 @@ export const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+
+    const trimmedEmail = email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const user = await login(email, password);
+      const user = await login(trimmedEmail, password);
       const actualPortal = portalForUser(user);
       if (!actualPortal) {
         setErrorMessage('This account has no portal access assigned. Contact your administrator.');
@@ -54,13 +62,17 @@ export const Login = () => {
       setTimeout(() => navigate(target, { replace: true }), 600);
     } catch (err) {
       if (err instanceof ApiError) {
-        // An account that exists but is still pending approval (or was
-        // rejected) comes back 403 with the reason as the message
-        // (CustomTokenObtainPairSerializer.APPROVAL_MESSAGES) — show that
-        // instead of telling the user their password is wrong.
-        setErrorMessage(err.code === 'AUTHENTICATION_FAILED'
-          ? 'Incorrect email or password.'
-          : (typeof err.message === 'string' ? err.message : 'Login failed. Please try again.'));
+        // Handle field validation errors (e.g. invalid email format)
+        if (err.fieldErrors?.email) {
+          const emailErr = Array.isArray(err.fieldErrors.email)
+            ? err.fieldErrors.email[0]
+            : err.fieldErrors.email;
+          setErrorMessage(emailErr);
+        } else if (err.code === 'AUTHENTICATION_FAILED') {
+          setErrorMessage('Incorrect email or password.');
+        } else {
+          setErrorMessage(typeof err.message === 'string' ? err.message : 'Login failed. Please try again.');
+        }
       } else {
         setErrorMessage('Login failed. Please try again.');
       }

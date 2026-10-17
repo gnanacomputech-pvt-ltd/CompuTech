@@ -9,7 +9,10 @@ from apps.core.models import (
 from apps.academics.models import (
     Session, Attendance, Assignment, AssignmentSubmission, Assessment, AssessmentMark, StudentProgress
 )
-from apps.website.models import ContactInquiry, StudentRegistrationInquiry
+from apps.website.models import (
+    ContactInquiry, StudentRegistrationInquiry,
+    ProjectRegistration, InternshipRegistration, EventRegistration,
+)
 
 
 class WebsiteInquiryTests(APITestCase):
@@ -97,6 +100,180 @@ class WebsiteInquiryTests(APITestCase):
         inquiry.refresh_from_db()
         self.assertEqual(inquiry.status, 'REPLIED')
         self.assertEqual(inquiry.staff_notes, 'Contacted student on phone.')
+
+    def test_public_enquire_submission_success(self):
+        from django.core import mail
+        mail.outbox.clear()
+        payload = {
+            'full_name': 'Kavya Suresh',
+            'email': 'kavya@gmail.com',
+            'phone': '9123456789',
+            'college': 'BMS College of Engineering',
+            'interest': 'Full Stack Web Development',
+            'training_mode': 'Hybrid (Classroom + Online)',
+            'message': 'Please provide fee structure and syllabus for the weekend batch.'
+        }
+        res = self.client.post('/api/v1/public/enquire/', payload)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(ContactInquiry.objects.filter(email='kavya@gmail.com').exists())
+        inquiry = ContactInquiry.objects.get(email='kavya@gmail.com')
+        self.assertEqual(inquiry.name, 'Kavya Suresh')
+        self.assertIn('BMS College of Engineering', inquiry.message)
+        self.assertIn('Hybrid', inquiry.message)
+        # Staff email should be triggered
+        self.assertTrue(len(mail.outbox) >= 1)
+        self.assertIn('[New Enquiry]', mail.outbox[-1].subject)
+        self.assertIn('Kavya Suresh', mail.outbox[-1].body)
+        self.assertIn('9123456789', mail.outbox[-1].body)
+
+    def test_phone_max_10_digits_enforced(self):
+        # 11 digits without +91 should fail
+        payload = {
+            'name': 'Invalid Phone User',
+            'email': 'invalid@gmail.com',
+            'phone': '98765432101',
+            'subject': 'General Query',
+            'message': 'This is a test message to verify phone limit.'
+        }
+        res = self.client.post('/api/v1/public/contact/', payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        error_dict = res.data.get('error', {}).get('message', res.data)
+        self.assertIn('phone', error_dict)
+
+    def test_public_project_registration_submission_and_staff_email(self):
+        from django.core import mail
+        mail.outbox.clear()
+        payload = {
+            'full_name': 'Rohan Patil',
+            'email': 'rohan@gmail.com',
+            'phone': '9845012345',
+            'college': 'Dayananda Sagar College',
+            'degree': 'BCA (Bachelor of Computer Applications)',
+            'year_or_semester': '6th Semester',
+            'project_domain': 'Artificial Intelligence & Machine Learning',
+            'project_title': 'Deep Learning Facial Attendance',
+            'team_size': '2 Members Team',
+            'preferred_technology': 'Python & Django / Flask',
+            'message': 'Need guidance on OpenCV integration and documentation.'
+        }
+        res = self.client.post('/api/v1/public/register-project/', payload)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(ProjectRegistration.objects.filter(email='rohan@gmail.com').exists())
+        project = ProjectRegistration.objects.get(email='rohan@gmail.com')
+        self.assertEqual(project.full_name, 'Rohan Patil')
+        self.assertEqual(project.status, 'NEW')
+        # Staff email should be triggered
+        self.assertTrue(len(mail.outbox) >= 1)
+        self.assertIn('[Project Registration]', mail.outbox[-1].subject)
+        self.assertIn('Rohan Patil', mail.outbox[-1].body)
+        self.assertIn('9845012345', mail.outbox[-1].body)
+
+    def test_public_internship_registration_submission_and_staff_email(self):
+        from django.core import mail
+        mail.outbox.clear()
+        payload = {
+            'full_name': 'Deepa Hegde',
+            'email': 'deepa@gmail.com',
+            'phone': '9740011223',
+            'college': 'BMS College of Engineering',
+            'degree': 'B.E. Computer Science',
+            'semester': '7th Semester',
+            'internship_track': 'Full Stack Web Development',
+            'duration': '3 Months',
+            'mode': 'Hybrid (Classroom + Online)',
+            'skills_or_portfolio': 'React, Node.js, Express, MongoDB',
+            'message': 'Looking for hands-on production experience.'
+        }
+        res = self.client.post('/api/v1/public/register-internship/', payload)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(InternshipRegistration.objects.filter(email='deepa@gmail.com').exists())
+        internship = InternshipRegistration.objects.get(email='deepa@gmail.com')
+        self.assertEqual(internship.full_name, 'Deepa Hegde')
+        self.assertEqual(internship.status, 'NEW')
+        # Staff email
+        self.assertTrue(len(mail.outbox) >= 1)
+        self.assertIn('[Internship Application]', mail.outbox[-1].subject)
+        self.assertIn('Deepa Hegde', mail.outbox[-1].body)
+
+    def test_public_event_registration_submission_and_staff_email(self):
+        from django.core import mail
+        mail.outbox.clear()
+        payload = {
+            'full_name': 'Varun Verma',
+            'email': 'varun@gmail.com',
+            'phone': '9900112233',
+            'event_title': 'Masterclass on Generative AI & LLMs',
+            'college_or_organization': 'PES University',
+            'attendee_type': 'Student',
+            'ticket_count': 2,
+            'participation_mode': 'In-Person (Campus / Venue)',
+            'message': 'Excited to attend the hands-on session.'
+        }
+        res = self.client.post('/api/v1/public/register-event/', payload)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(EventRegistration.objects.filter(email='varun@gmail.com').exists())
+        event_reg = EventRegistration.objects.get(email='varun@gmail.com')
+        self.assertEqual(event_reg.full_name, 'Varun Verma')
+        self.assertEqual(event_reg.ticket_count, 2)
+        # Staff email
+        self.assertTrue(len(mail.outbox) >= 1)
+        self.assertIn('[Event Registration]', mail.outbox[-1].subject)
+        self.assertIn('Varun Verma', mail.outbox[-1].body)
+
+    def test_staff_manage_project_internship_event_registrations(self):
+        project = ProjectRegistration.objects.create(
+            full_name='Pooja K', email='pooja@gmail.com', phone='9888877777',
+            college='St Josephs', degree='BCA', project_domain='Cloud Computing'
+        )
+        internship = InternshipRegistration.objects.create(
+            full_name='Aditya M', email='aditya@gmail.com', phone='9888877776',
+            college='Jain University', degree='MCA', internship_track='Python & Data Science'
+        )
+        event_reg = EventRegistration.objects.create(
+            full_name='Siddharth', email='sid@gmail.com', phone='9888877775',
+            event_title='Tech Summit 2026', college_or_organization='Wipro'
+        )
+
+        # Unauthenticated rejected
+        self.assertEqual(self.client.get('/api/v1/staff/project-registrations/').status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.get('/api/v1/staff/internship-registrations/').status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.client.get('/api/v1/staff/event-registrations/').status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Staff authenticated can list and update status
+        self.client.force_authenticate(user=self.staff_user)
+
+        res_proj = self.client.get('/api/v1/staff/project-registrations/')
+        self.assertEqual(res_proj.status_code, status.HTTP_200_OK)
+        patch_proj = self.client.patch(
+            f'/api/v1/staff/project-registrations/{project.id}/',
+            {'status': 'CONFIRMED', 'staff_notes': 'Assigned to mentor Naveen'}
+        )
+        self.assertEqual(patch_proj.status_code, status.HTTP_200_OK)
+        project.refresh_from_db()
+        self.assertEqual(project.status, 'CONFIRMED')
+        self.assertEqual(project.staff_notes, 'Assigned to mentor Naveen')
+
+        res_int = self.client.get('/api/v1/staff/internship-registrations/')
+        self.assertEqual(res_int.status_code, status.HTTP_200_OK)
+        patch_int = self.client.patch(
+            f'/api/v1/staff/internship-registrations/{internship.id}/',
+            {'status': 'REVIEWING', 'staff_notes': 'Profile shortlisted for interview'}
+        )
+        self.assertEqual(patch_int.status_code, status.HTTP_200_OK)
+        internship.refresh_from_db()
+        self.assertEqual(internship.status, 'REVIEWING')
+
+        res_evt = self.client.get('/api/v1/staff/event-registrations/')
+        self.assertEqual(res_evt.status_code, status.HTTP_200_OK)
+        patch_evt = self.client.patch(
+            f'/api/v1/staff/event-registrations/{event_reg.id}/',
+            {'status': 'ATTENDED', 'staff_notes': 'Certificate issued'}
+        )
+        self.assertEqual(patch_evt.status_code, status.HTTP_200_OK)
+        event_reg.refresh_from_db()
+        self.assertEqual(event_reg.status, 'ATTENDED')
+
+
 
 
 class UserRegistrationAuthTests(APITestCase):

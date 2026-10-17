@@ -73,7 +73,7 @@ export const EventCard = ({ event }) => {
 
           {isUpcoming ? (
             <Link
-              to="/register"
+              to={`/register-event?event=${encodeURIComponent(event.title || '')}`}
               className="flex-1 text-center py-2 px-3 rounded-lg bg-[#0f766e] hover:bg-[#115e59] text-white font-bold text-xs shadow-md transition-colors"
             >
               Register

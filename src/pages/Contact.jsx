@@ -29,10 +29,11 @@ export const Contact = () => {
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       errs.email = 'Invalid email address';
     }
-    if (!formData.phone.trim()) {
+    const cleanPhone = formData.phone.trim();
+    if (!cleanPhone) {
       errs.phone = 'Phone number is required';
-    } else if (!/^[0-9+\s-]{10,15}$/.test(formData.phone)) {
-      errs.phone = 'Invalid phone number';
+    } else if (!/^\d{10}$/.test(cleanPhone)) {
+      errs.phone = 'Enter a valid 10-digit phone number';
     }
     if (!formData.message.trim()) errs.message = 'Message content is required';
 
@@ -196,14 +197,25 @@ export const Contact = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-[#222326] mb-1">
-                    Phone Number *
-                  </label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#222326]">
+                      Phone Number *
+                    </label>
+                    <span className="text-[11px] font-semibold text-gray-400">
+                      {formData.phone.length}/10 digits
+                    </span>
+                  </div>
                   <input
                     type="tel"
+                    required
+                    maxLength={10}
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="e.g. 9876543210"
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setFormData({ ...formData, phone: digits });
+                      if (errors.phone) setErrors({ ...errors, phone: null });
+                    }}
+                    placeholder="10-digit mobile number (e.g. 9876543210)"
                     className={`w-full px-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-[#D4A72C] ${
                       errors.phone ? 'border-red-500 bg-red-50' : 'border-[#E8E1D2] bg-[#FAFAF7]'
                     }`}

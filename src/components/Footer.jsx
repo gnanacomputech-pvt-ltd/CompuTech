@@ -52,6 +52,21 @@ export const Footer = () => {
               <li>
                 <Link to="/contact" className="text-[#b7c0e6] hover:text-[#ffcc00] transition-colors">Contact</Link>
               </li>
+              <li>
+                <Link to="/register-project" className="text-[#b7c0e6] hover:text-[#ffcc00] transition-colors">Project Registration</Link>
+              </li>
+              <li>
+                <Link to="/register-internship" className="text-[#b7c0e6] hover:text-[#ffcc00] transition-colors">Internship Application</Link>
+              </li>
+              <li>
+                <Link to="/register-event" className="text-[#b7c0e6] hover:text-[#ffcc00] transition-colors">Event Registration</Link>
+              </li>
+              <li>
+                <Link to="/enquire" className="text-[#b7c0e6] hover:text-[#ffcc00] transition-colors">Enquire Now</Link>
+              </li>
+              <li>
+                <Link to="/register" className="text-[#b7c0e6] hover:text-[#ffcc00] transition-colors">Course Admissions</Link>
+              </li>
             </ul>
           </div>
 

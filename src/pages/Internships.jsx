@@ -96,7 +96,7 @@ export const Internships = () => {
         <div className="text-center bg-[#17181A] p-8 rounded-2xl border border-[#D4A72C]/40 text-white max-w-3xl mx-auto space-y-4">
           <h3 className="text-2xl font-bold">Ready to Apply for an Internship?</h3>
           <p className="text-gray-300 text-sm">Submit your student application online and our team will contact you within 24 hours.</p>
-          <Button to="/register" variant="primary" size="lg">
+          <Button to="/register-internship" variant="primary" size="lg">
             Submit Internship Application
           </Button>
         </div>

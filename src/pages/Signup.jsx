@@ -56,7 +56,12 @@ export const Signup = () => {
     const errs = {};
     if (!name.trim()) errs.name = isStudent ? 'Full name is required' : 'College / organization name is required';
     if (!email.trim()) errs.email = 'Email address is required';
-    if (!phone.trim()) errs.phone = 'Phone number is required';
+    const cleanPhone = phone.trim();
+    if (!cleanPhone) {
+      errs.phone = 'Phone number is required';
+    } else if (!/^\d{10}$/.test(cleanPhone)) {
+      errs.phone = 'Enter a valid 10-digit phone number';
+    }
     if (!password) errs.password = 'Password is required';
     else if (password.length < 8) errs.password = 'Password must be at least 8 characters';
     if (password !== confirmPassword) errs.confirmPassword = 'Passwords do not match';
@@ -243,8 +248,13 @@ export const Signup = () => {
                   <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                   <input
                     type="tel"
+                    maxLength={10}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setPhone(digits);
+                      if (errors.phone) setErrors({ ...errors, phone: null });
+                    }}
                     placeholder="9876543210"
                     className={inputClass}
                   />

@@ -1,17 +1,24 @@
 import re
 from rest_framework import serializers
-from apps.website.models import ContactInquiry, StudentRegistrationInquiry, SiteContent
-
-
-PHONE_RE = re.compile(r'^[0-9+\s\-]{10,15}$')
+from apps.website.models import (
+    ContactInquiry, StudentRegistrationInquiry, SiteContent,
+    ProjectRegistration, InternshipRegistration, EventRegistration,
+)
 
 
 def validate_phone(value):
-    if not PHONE_RE.match(value.strip()):
-        raise serializers.ValidationError(
-            "Enter a valid phone number (10–15 digits, may include +, spaces, or hyphens)."
-        )
-    return value.strip()
+    val = value.strip()
+    digits = re.sub(r'\D', '', val)
+    # Strip leading India country code 91 if present with 12 digits
+    if len(digits) == 12 and digits.startswith('91'):
+        digits = digits[2:]
+    if len(digits) == 0:
+        raise serializers.ValidationError("Phone number is required.")
+    if len(digits) > 10:
+        raise serializers.ValidationError("Phone number must not exceed 10 digits.")
+    if len(digits) < 10:
+        raise serializers.ValidationError("Enter a valid 10-digit phone number.")
+    return digits
 
 
 # ---------------------------------------------------------------------------
@@ -34,6 +41,22 @@ class ContactInquiryCreateSerializer(serializers.ModelSerializer):
         if len(value.strip()) < 10:
             raise serializers.ValidationError("Message must be at least 10 characters.")
         return value.strip()
+
+
+class EnquirySubmitSerializer(serializers.Serializer):
+    """
+    Public serializer for POST /api/v1/public/enquire/.
+    """
+    full_name = serializers.CharField(required=True, max_length=255)
+    email = serializers.EmailField(required=True)
+    phone = serializers.CharField(required=True, max_length=20)
+    college = serializers.CharField(required=False, allow_blank=True, max_length=255, default='')
+    interest = serializers.CharField(required=False, allow_blank=True, max_length=150, default='Academic Project Guidance')
+    training_mode = serializers.CharField(required=False, allow_blank=True, max_length=100, default='Classroom / Offline')
+    message = serializers.CharField(required=True, min_length=10)
+
+    def validate_phone(self, value):
+        return validate_phone(value)
 
 
 class ContactInquirySerializer(serializers.ModelSerializer):
@@ -75,6 +98,94 @@ class StudentRegistrationInquirySerializer(serializers.ModelSerializer):
         model = StudentRegistrationInquiry
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# ---------------------------------------------------------------------------
+# Project Registration Form (Academic & Final Year Projects)
+# ---------------------------------------------------------------------------
+
+class ProjectRegistrationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectRegistration
+        fields = [
+            'full_name', 'email', 'phone', 'college', 'degree',
+            'year_or_semester', 'project_domain', 'project_title',
+            'team_size', 'preferred_technology', 'message'
+        ]
+
+    def validate_phone(self, value):
+        return validate_phone(value)
+
+    def validate_college(self, value):
+        if len(value.strip()) < 3:
+            raise serializers.ValidationError("Please enter your college name.")
+        return value.strip()
+
+
+class ProjectRegistrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectRegistration
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# ---------------------------------------------------------------------------
+# Internship Registration Form (IT / Software Internships)
+# ---------------------------------------------------------------------------
+
+class InternshipRegistrationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InternshipRegistration
+        fields = [
+            'full_name', 'email', 'phone', 'college', 'degree',
+            'semester', 'internship_track', 'duration', 'mode',
+            'start_date', 'skills_or_portfolio', 'message'
+        ]
+
+    def validate_phone(self, value):
+        return validate_phone(value)
+
+    def validate_college(self, value):
+        if len(value.strip()) < 3:
+            raise serializers.ValidationError("Please enter your college name.")
+        return value.strip()
+
+
+class InternshipRegistrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InternshipRegistration
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# ---------------------------------------------------------------------------
+# Event Registration Form (Workshops & Seminars)
+# ---------------------------------------------------------------------------
+
+class EventRegistrationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventRegistration
+        fields = [
+            'full_name', 'email', 'phone', 'event_title',
+            'college_or_organization', 'attendee_type',
+            'ticket_count', 'participation_mode', 'message'
+        ]
+
+    def validate_phone(self, value):
+        return validate_phone(value)
+
+    def validate_event_title(self, value):
+        if not value or len(value.strip()) < 2:
+            raise serializers.ValidationError("Event title is required.")
+        return value.strip()
+
+
+class EventRegistrationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventRegistration
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
 
 
 # ---------------------------------------------------------------------------

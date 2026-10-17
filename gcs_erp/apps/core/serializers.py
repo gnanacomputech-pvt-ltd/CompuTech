@@ -6,6 +6,7 @@ from apps.core.models import (
     User, Role, Permission, UserRole, Institution,
     Department, Program, Batch, Student, Employee, Enrollment, SignupRequest
 )
+from apps.core.validators import validate_email_address
 
 
 # Role codes a self-registering staff member may ask for. Mirrors
@@ -46,9 +47,21 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     }
 
     def validate(self, attrs):
+        email = (attrs.get('email') or attrs.get(self.username_field) or '').strip()
+        is_valid, error_msg = validate_email_address(email)
+        if not is_valid:
+            raise serializers.ValidationError({
+                'email': error_msg or 'Please enter a valid email address.'
+            })
+
         self._reject_unapproved(attrs)
         data = super().validate(attrs)
         user = self.user
+
+        if not user.email or not validate_email_address(user.email)[0]:
+            raise serializers.ValidationError({
+                'email': 'The email associated with this account is not valid.'
+            })
         roles = user.get_role_codes()
 
         # Gather all permissions across roles
@@ -151,6 +164,18 @@ class BaseSignupSerializer(serializers.Serializer):
                 "An account with this email address already exists."
             )
         return value
+
+    def validate_phone(self, value):
+        if not value:
+            return value
+        import re
+        val = value.strip()
+        digits = re.sub(r'\D', '', val)
+        if len(digits) == 12 and digits.startswith('91'):
+            digits = digits[2:]
+        if len(digits) > 10:
+            raise serializers.ValidationError("Phone number must not exceed 10 digits.")
+        return digits
 
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:

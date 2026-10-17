@@ -108,6 +108,13 @@ export const Navbar = () => {
 
             <Link
               to="/register"
+              className="text-xs xl:text-sm font-semibold px-3 py-1.5 xl:px-3.5 xl:py-2 rounded-lg border border-[#D4A72C]/30 bg-[#222326] text-[#ffcc00]/90 hover:text-[#ffcc00] hover:border-[#ffcc00] transition-all"
+            >
+              Register
+            </Link>
+
+            <Link
+              to="/enquire"
               className="bg-[#ffcc00] hover:bg-[#e6b800] text-[#17181A] font-extrabold text-xs xl:text-sm px-4 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-1.5 active:scale-95"
             >
               <span>Enquire</span>
@@ -117,7 +124,7 @@ export const Navbar = () => {
           {/* Mobile Hamburger Button */}
           <div className="flex lg:hidden items-center space-x-2">
             <Link
-              to="/register"
+              to="/enquire"
               className="bg-[#ffcc00] text-[#17181A] font-extrabold text-xs px-3 py-1.5 rounded-lg"
             >
               Enquire
@@ -185,11 +192,18 @@ export const Navbar = () => {
                   Log In
                 </Link>
                 <Link
+                  to="/enquire"
+                  onClick={() => setIsOpen(false)}
+                  className="flex-1 text-center py-2.5 rounded-xl bg-[#222326] border border-[#D4A72C]/50 text-[#ffcc00] font-bold text-sm"
+                >
+                  Enquire
+                </Link>
+                <Link
                   to="/register"
                   onClick={() => setIsOpen(false)}
                   className="flex-1 text-center py-2.5 rounded-xl bg-[#ffcc00] text-[#17181A] font-bold text-sm"
                 >
-                  Apply / Register
+                  Apply
                 </Link>
               </>
             )}

@@ -254,3 +254,115 @@ def notify_signup_decision(user, approved, reason=''):
     except Exception:
         logger.exception("Signup decision email to %s could not be sent", getattr(user, 'email', '<unknown>'))
         return 'failed'
+
+
+# ---------------------------------------------------------------------------
+# Sign-in Security Notifications
+# ---------------------------------------------------------------------------
+
+def _signin_email_payload(user, ip_address=None, user_agent=None, signin_time=None):
+    from django.utils import timezone
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+    reset_url = f"{frontend_url}/forgot-password"
+    support_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info.gcsminds@gmail.com')
+    if not signin_time:
+        signin_time = timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')
+    ip_str = ip_address or 'Unknown IP'
+    device_str = user_agent or 'Unknown Device'
+
+    subject = "Security Alert: New Sign-in to Your GCS Account"
+    message = (
+        f"Hi {user.full_name or user.email},\n\n"
+        f"A new sign-in to your Gnana Computech Solutions Portal account ({user.email}) was just detected.\n\n"
+        f"Date & Time: {signin_time}\n"
+        f"IP Address: {ip_str}\n"
+        f"Device / Browser: {device_str}\n\n"
+        "If this was you, you can safely ignore this email.\n"
+        f"If you did not initiate this sign-in, someone else may be accessing your account. "
+        f"Please reset your password immediately at {reset_url} and contact support at {support_email}.\n\n"
+        "Gnana Computech Solutions Private Limited\n"
+        "Bangalore North, Karnataka, India\n"
+    )
+
+    try:
+        html_message = render_to_string('emails/signin_notification.html', {
+            'user': user,
+            'signin_time': signin_time,
+            'ip_address': ip_str,
+            'user_agent': device_str,
+            'support_email': support_email,
+            'reset_url': reset_url,
+        })
+    except Exception:
+        logger.exception("Could not render emails/signin_notification.html; sending plain text only")
+        html_message = None
+
+    return subject, message, html_message
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60, ignore_result=True)
+def send_signin_notification_email(self, user_id, ip_address=None, user_agent=None, signin_time=None):
+    """Email a user whenever a successful sign-in occurs."""
+    from apps.core.models import User
+
+    user = User.objects.filter(id=user_id).first()
+    if user is None:
+        logger.warning("send_signin_notification_email: no user with id %s", user_id)
+        return {'user_id': str(user_id), 'sent': False, 'reason': 'user_not_found'}
+
+    if not user.email:
+        logger.warning("send_signin_notification_email: user %s has no email address", user_id)
+        return {'user_id': str(user_id), 'sent': False, 'reason': 'no_email'}
+
+    subject, message, html_message = _signin_email_payload(user, ip_address, user_agent, signin_time)
+
+    try:
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'info.gcsminds@gmail.com'),
+            recipient_list=[user.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+    except Exception as exc:
+        logger.warning("Sign-in notification email to %s failed (attempt %s): %s", user.email, self.request.retries + 1, exc)
+        raise self.retry(exc=exc)
+
+    logger.info("Sign-in notification email sent to %s", user.email)
+    return {'user_id': str(user_id), 'sent': True}
+
+
+def queue_signin_email(user, ip_address=None, user_agent=None):
+    """Dispatch the sign-in notification email asynchronously or inline."""
+    from django.utils import timezone
+    signin_time = timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')
+    eager = getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False)
+
+    if eager or _broker_is_reachable():
+        try:
+            send_signin_notification_email.apply_async(
+                args=[str(user.id), ip_address, user_agent, signin_time],
+                retry=False
+            )
+            return 'queued'
+        except Exception:
+            logger.warning("Celery unavailable; sending sign-in email inline", exc_info=True)
+    else:
+        logger.info("Broker unreachable; sending sign-in email inline")
+
+    try:
+        subject, message, html_message = _signin_email_payload(user, ip_address, user_agent, signin_time)
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'info.gcsminds@gmail.com'),
+            recipient_list=[user.email],
+            html_message=html_message,
+            fail_silently=True,
+        )
+        return 'sent_inline'
+    except Exception:
+        logger.exception("Sign-in notification email to %s could not be sent", getattr(user, 'email', '<unknown>'))
+        return 'failed'
+

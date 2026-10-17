@@ -156,3 +156,112 @@ class SiteContent(TimeStampedModel):
 
     def __str__(self):
         return f"[{self.section}] {self.title}"
+
+
+class ProjectRegistration(TimeStampedModel):
+    """
+    Stores academic and final-year project guidance registrations
+    (BCA, MCA, BE/BTech students).
+    """
+    STATUS_CHOICES = (
+        ('NEW', 'New Application'),
+        ('CONTACTED', 'Contacted / Counseling'),
+        ('CONFIRMED', 'Project Confirmed'),
+        ('IN_PROGRESS', 'Development In Progress'),
+        ('COMPLETED', 'Completed & Delivered'),
+        ('REJECTED', 'Cancelled / Rejected'),
+    )
+
+    full_name = models.CharField(max_length=255)
+    email = models.EmailField(db_index=True)
+    phone = models.CharField(max_length=20)
+    college = models.CharField(max_length=255)
+    degree = models.CharField(max_length=100)
+    year_or_semester = models.CharField(max_length=50, blank=True)
+    project_domain = models.CharField(max_length=150)
+    project_title = models.CharField(max_length=255, blank=True)
+    team_size = models.CharField(max_length=50, default='Individual (1 member)')
+    preferred_technology = models.CharField(max_length=150, blank=True)
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='NEW', db_index=True)
+    staff_notes = models.TextField(blank=True, help_text="Internal notes visible only to ERP staff.")
+
+    class Meta:
+        db_table = 'website_project_registrations'
+        ordering = ['-created_at']
+        verbose_name = 'Project Registration'
+        verbose_name_plural = 'Project Registrations'
+
+    def __str__(self):
+        return f"[{self.status}] {self.full_name} — {self.project_domain} ({self.college})"
+
+
+class InternshipRegistration(TimeStampedModel):
+    """
+    Stores IT / Software development internship applications.
+    """
+    STATUS_CHOICES = (
+        ('NEW', 'New Application'),
+        ('REVIEWING', 'Under Review'),
+        ('INTERVIEW_SCHEDULED', 'Interview Scheduled'),
+        ('ACCEPTED', 'Accepted & Offer Sent'),
+        ('ONBOARDED', 'Onboarded'),
+        ('REJECTED', 'Rejected'),
+    )
+
+    full_name = models.CharField(max_length=255)
+    email = models.EmailField(db_index=True)
+    phone = models.CharField(max_length=20)
+    college = models.CharField(max_length=255)
+    degree = models.CharField(max_length=100)
+    semester = models.CharField(max_length=50, blank=True)
+    internship_track = models.CharField(max_length=150)
+    duration = models.CharField(max_length=50, default='3 Months')
+    mode = models.CharField(max_length=50, default='Hybrid')
+    start_date = models.DateField(null=True, blank=True)
+    skills_or_portfolio = models.TextField(blank=True)
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='NEW', db_index=True)
+    staff_notes = models.TextField(blank=True, help_text="Internal notes visible only to ERP staff.")
+
+    class Meta:
+        db_table = 'website_internship_registrations'
+        ordering = ['-created_at']
+        verbose_name = 'Internship Registration'
+        verbose_name_plural = 'Internship Registrations'
+
+    def __str__(self):
+        return f"[{self.status}] {self.full_name} — {self.internship_track} ({self.email})"
+
+
+class EventRegistration(TimeStampedModel):
+    """
+    Stores registrations for workshops, bootcamps, and technical events.
+    """
+    STATUS_CHOICES = (
+        ('CONFIRMED', 'Confirmed'),
+        ('PENDING', 'Pending Verification'),
+        ('ATTENDED', 'Attended'),
+        ('CANCELLED', 'Cancelled'),
+    )
+
+    full_name = models.CharField(max_length=255)
+    email = models.EmailField(db_index=True)
+    phone = models.CharField(max_length=20)
+    event_title = models.CharField(max_length=255)
+    college_or_organization = models.CharField(max_length=255)
+    attendee_type = models.CharField(max_length=50, default='Student')
+    ticket_count = models.PositiveIntegerField(default=1)
+    participation_mode = models.CharField(max_length=50, default='In-Person')
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='CONFIRMED', db_index=True)
+    staff_notes = models.TextField(blank=True, help_text="Internal notes visible only to ERP staff.")
+
+    class Meta:
+        db_table = 'website_event_registrations'
+        ordering = ['-created_at']
+        verbose_name = 'Event Registration'
+        verbose_name_plural = 'Event Registrations'
+
+    def __str__(self):
+        return f"[{self.status}] {self.full_name} — {self.event_title} ({self.ticket_count} attendees)"
