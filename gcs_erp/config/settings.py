@@ -340,6 +340,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'user': os.getenv('THROTTLE_USER_RATE', '1000/hour'),
         'anon': os.getenv('THROTTLE_ANON_RATE', '100/hour'),
+        'public_form': os.getenv('THROTTLE_PUBLIC_FORM_RATE', '1000/hour' if DEBUG else '100/hour'),
     },
     # Number of trusted reverse proxies in front of the app (nginx / ALB / CloudFront).
     # Needed so throttling uses the real client IP and ignores spoofed X-Forwarded-For values.

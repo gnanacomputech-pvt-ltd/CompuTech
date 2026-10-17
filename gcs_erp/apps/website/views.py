@@ -31,10 +31,11 @@ from apps.website.emails import (
 
 class PublicFormThrottle(AnonRateThrottle):
     """
-    Strict rate limit for public form submission endpoints.
-    Prevents spam / abuse of contact and registration forms.
+    Rate limit for public form submission endpoints.
+    Protects against automated abuse while allowing sufficient submissions for testing.
+    Uses 'public_form' scope defined in settings.REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'].
     """
-    rate = '20/hour'
+    scope = 'public_form'
 
 
 # ---------------------------------------------------------------------------
